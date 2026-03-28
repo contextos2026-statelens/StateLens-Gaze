@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JINS MEME ES Gaze Dashboard</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel hero">
+        <div>
+          <p class="eyebrow">Realtime Gaze Map</p>
+          <h1>JINS MEME ES 視線推定ダッシュボード</h1>
+          <p class="lede">
+            受信した眼電位から水平方向・垂直方向を推定し、座標とヒートマップで表示します。
+            同じLANにあるiPhoneからもこの画面を開けます。
+          </p>
+        </div>
+        <div class="status-grid">
+          <article class="metric">
+            <span>状態</span>
+            <strong id="statusText">待機中</strong>
+          </article>
+          <article class="metric">
+            <span>座標</span>
+            <strong id="coordText">-</strong>
+          </article>
+          <article class="metric">
+            <span>較正点</span>
+            <strong id="sampleText">0</strong>
+          </article>
+          <article class="metric">
+            <span>瞬目強度</span>
+            <strong id="blinkText">0.00</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel stage-panel">
+          <div class="panel-head">
+            <h2>視線ステージ</h2>
+            <button id="toggleTrailButton" class="ghost">軌跡ON/OFF</button>
+          </div>
+          <div id="stage" class="stage">
+            <canvas id="heatmapCanvas" width="1280" height="720"></canvas>
+            <canvas id="trailCanvas" width="1280" height="720"></canvas>
+            <div id="gazeDot" class="gaze-dot"></div>
+            <div class="stage-label left">LEFT</div>
+            <div class="stage-label right">RIGHT</div>
+            <div class="stage-label top">TOP</div>
+            <div class="stage-label bottom">BOTTOM</div>
+          </div>
+        </article>
+
+        <article class="panel sidebar">
+          <div class="panel-head">
+            <h2>キャリブレーション</h2>
+            <button id="resetCalibrationButton" class="ghost danger">リセット</button>
+          </div>
+          <p class="helper">
+            画面上の注視点を順に見ながら「現在値を保存」を押してください。3点以上で係数計算できます。
+          </p>
+          <div class="targets" id="targets"></div>
+          <div class="actions">
+            <button id="solveButton">係数を計算</button>
+            <button id="mockButton" class="ghost">デモ信号送信</button>
+          </div>
+          <div class="telemetry">
+            <div>
+              <span>水平</span>
+              <strong id="horizontalText">0.000</strong>
+            </div>
+            <div>
+              <span>垂直</span>
+              <strong id="verticalText">0.000</strong>
+            </div>
+          </div>
+          <pre id="mappingText" class="mapping">未較正</pre>
+        </article>
+      </section>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

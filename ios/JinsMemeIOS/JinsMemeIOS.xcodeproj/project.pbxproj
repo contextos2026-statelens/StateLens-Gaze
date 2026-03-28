@@ -1,0 +1,421 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04D6988B59F333D6B5820EFC /* MacReceiverContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D45E161192128A1F084A4E1 /* MacReceiverContentView.swift */; };
+		0A332FFE0BF1E246F0019BFB /* JinsMemeMacReceiverApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46499B813F257F06BA0B181 /* JinsMemeMacReceiverApp.swift */; };
+		13B549AEDF8BCB4FAE7EB8D5 /* PeerRelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3653E30CE6B65E8D3F88316 /* PeerRelayService.swift */; };
+		19D26E714330D3CA7EFBB6CA /* PeerRelayReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40CD40DD6266CDF83CA25845 /* PeerRelayReceiver.swift */; };
+		383DAB4581313B4BFC57AB22 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7099879573FB2455D9350FD3 /* DashboardViewModel.swift */; };
+		79E10111AD8A1B34F7887A16 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E713EC4CA045E797754365 /* Models.swift */; };
+		7EF0720483758DB456A79561 /* SensorSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B88E1D2352D756C07CB75DB /* SensorSources.swift */; };
+		8BF8545C7D31DBAEC8271C84 /* JinsMemeIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16358987919374F76D222E9 /* JinsMemeIOSApp.swift */; };
+		9CB1B2D7BA227A54BAD16A10 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3E59E612ED6916E94C7846 /* SharedModels.swift */; };
+		9F3BAEF1F155812C7D153C5D /* GazeEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61E880C811A7675485C425D8 /* GazeEstimator.swift */; };
+		E3A75D80473D489389120D7A /* MacReceiverViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3443BB62915609167FFFD84F /* MacReceiverViewModel.swift */; };
+		FC57ECA5DC4D36D1A04062C7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8C7EF499725FAE08ABBD92 /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		3443BB62915609167FFFD84F /* MacReceiverViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacReceiverViewModel.swift; sourceTree = "<group>"; };
+		40CD40DD6266CDF83CA25845 /* PeerRelayReceiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerRelayReceiver.swift; sourceTree = "<group>"; };
+		52E713EC4CA045E797754365 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		61E880C811A7675485C425D8 /* GazeEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GazeEstimator.swift; sourceTree = "<group>"; };
+		6B88E1D2352D756C07CB75DB /* SensorSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorSources.swift; sourceTree = "<group>"; };
+		7099879573FB2455D9350FD3 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		876BE528F8D85951005F48BD /* JinsMemeIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JinsMemeIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		89ADEB2D709DA341D872A342 /* JinsMemeMacReceiver.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JinsMemeMacReceiver.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D45E161192128A1F084A4E1 /* MacReceiverContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacReceiverContentView.swift; sourceTree = "<group>"; };
+		9D3E59E612ED6916E94C7846 /* SharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedModels.swift; sourceTree = "<group>"; };
+		A46499B813F257F06BA0B181 /* JinsMemeMacReceiverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JinsMemeMacReceiverApp.swift; sourceTree = "<group>"; };
+		AA8C7EF499725FAE08ABBD92 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		BA52FD368FE8CE98AA16DE75 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C16358987919374F76D222E9 /* JinsMemeIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JinsMemeIOSApp.swift; sourceTree = "<group>"; };
+		E5ED038C61FD1B1E055326D1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F3653E30CE6B65E8D3F88316 /* PeerRelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerRelayService.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		32A25B13934B1CC29D7E3DFB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				876BE528F8D85951005F48BD /* JinsMemeIOS.app */,
+				89ADEB2D709DA341D872A342 /* JinsMemeMacReceiver.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		33CAF585310E88F8917B9D7B /* JinsMemeMacReceiver */ = {
+			isa = PBXGroup;
+			children = (
+				E5ED038C61FD1B1E055326D1 /* Info.plist */,
+				A46499B813F257F06BA0B181 /* JinsMemeMacReceiverApp.swift */,
+				8D45E161192128A1F084A4E1 /* MacReceiverContentView.swift */,
+				3443BB62915609167FFFD84F /* MacReceiverViewModel.swift */,
+				40CD40DD6266CDF83CA25845 /* PeerRelayReceiver.swift */,
+				9D3E59E612ED6916E94C7846 /* SharedModels.swift */,
+			);
+			path = JinsMemeMacReceiver;
+			sourceTree = "<group>";
+		};
+		4F61756D6DCE697E06B84A77 = {
+			isa = PBXGroup;
+			children = (
+				7C4004597A5CE2265C4B3B52 /* JinsMemeIOS */,
+				33CAF585310E88F8917B9D7B /* JinsMemeMacReceiver */,
+				32A25B13934B1CC29D7E3DFB /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7C4004597A5CE2265C4B3B52 /* JinsMemeIOS */ = {
+			isa = PBXGroup;
+			children = (
+				AA8C7EF499725FAE08ABBD92 /* ContentView.swift */,
+				7099879573FB2455D9350FD3 /* DashboardViewModel.swift */,
+				61E880C811A7675485C425D8 /* GazeEstimator.swift */,
+				BA52FD368FE8CE98AA16DE75 /* Info.plist */,
+				C16358987919374F76D222E9 /* JinsMemeIOSApp.swift */,
+				52E713EC4CA045E797754365 /* Models.swift */,
+				F3653E30CE6B65E8D3F88316 /* PeerRelayService.swift */,
+				6B88E1D2352D756C07CB75DB /* SensorSources.swift */,
+			);
+			path = JinsMemeIOS;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1C4748D23801907C1A1276B4 /* JinsMemeMacReceiver */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C86BD0EEA9400C86049041C2 /* Build configuration list for PBXNativeTarget "JinsMemeMacReceiver" */;
+			buildPhases = (
+				9BC4DDCB93EBE58EE8FC00AE /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JinsMemeMacReceiver;
+			packageProductDependencies = (
+			);
+			productName = JinsMemeMacReceiver;
+			productReference = 89ADEB2D709DA341D872A342 /* JinsMemeMacReceiver.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8C73F415FF9797D20EC52FB8 /* JinsMemeIOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6AA5D806979CD3466D11D721 /* Build configuration list for PBXNativeTarget "JinsMemeIOS" */;
+			buildPhases = (
+				3BB84E4FFCEF4A377FFA68D3 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JinsMemeIOS;
+			packageProductDependencies = (
+			);
+			productName = JinsMemeIOS;
+			productReference = 876BE528F8D85951005F48BD /* JinsMemeIOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		860B7AE84DFAA5007B9197C8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1C4748D23801907C1A1276B4 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 8A11CB6E7DCD439A7786603A /* Build configuration list for PBXProject "JinsMemeIOS" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4F61756D6DCE697E06B84A77;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 32A25B13934B1CC29D7E3DFB /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8C73F415FF9797D20EC52FB8 /* JinsMemeIOS */,
+				1C4748D23801907C1A1276B4 /* JinsMemeMacReceiver */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3BB84E4FFCEF4A377FFA68D3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC57ECA5DC4D36D1A04062C7 /* ContentView.swift in Sources */,
+				383DAB4581313B4BFC57AB22 /* DashboardViewModel.swift in Sources */,
+				9F3BAEF1F155812C7D153C5D /* GazeEstimator.swift in Sources */,
+				8BF8545C7D31DBAEC8271C84 /* JinsMemeIOSApp.swift in Sources */,
+				79E10111AD8A1B34F7887A16 /* Models.swift in Sources */,
+				13B549AEDF8BCB4FAE7EB8D5 /* PeerRelayService.swift in Sources */,
+				7EF0720483758DB456A79561 /* SensorSources.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9BC4DDCB93EBE58EE8FC00AE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A332FFE0BF1E246F0019BFB /* JinsMemeMacReceiverApp.swift in Sources */,
+				04D6988B59F333D6B5820EFC /* MacReceiverContentView.swift in Sources */,
+				E3A75D80473D489389120D7A /* MacReceiverViewModel.swift in Sources */,
+				19D26E714330D3CA7EFBB6CA /* PeerRelayReceiver.swift in Sources */,
+				9CB1B2D7BA227A54BAD16A10 /* SharedModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3AB25B85739BB2F21822105D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		728B36E1A3A30BC067202059 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X8YW3A4U4B;
+				INFOPLIST_FILE = JinsMemeIOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.JinsMemeIOS;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.1;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		880A386426FB8001B4CBE1EF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = JinsMemeMacReceiver/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.JinsMemeMacReceiver;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.1;
+			};
+			name = Debug;
+		};
+		8D062B60EDED6C44728ECBC8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X8YW3A4U4B;
+				INFOPLIST_FILE = JinsMemeIOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.JinsMemeIOS;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.1;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		9B15E6F340564D864797B192 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = JinsMemeMacReceiver/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.JinsMemeMacReceiver;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.1;
+			};
+			name = Release;
+		};
+		F4EF90F71A9EE7818CA66843 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		6AA5D806979CD3466D11D721 /* Build configuration list for PBXNativeTarget "JinsMemeIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				728B36E1A3A30BC067202059 /* Debug */,
+				8D062B60EDED6C44728ECBC8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8A11CB6E7DCD439A7786603A /* Build configuration list for PBXProject "JinsMemeIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F4EF90F71A9EE7818CA66843 /* Debug */,
+				3AB25B85739BB2F21822105D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C86BD0EEA9400C86049041C2 /* Build configuration list for PBXNativeTarget "JinsMemeMacReceiver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				880A386426FB8001B4CBE1EF /* Debug */,
+				9B15E6F340564D864797B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 860B7AE84DFAA5007B9197C8 /* Project object */;
+}

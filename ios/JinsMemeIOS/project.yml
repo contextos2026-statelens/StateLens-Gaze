@@ -1,0 +1,37 @@
+name: JinsMemeIOS
+options:
+  deploymentTarget:
+    iOS: 17.0
+packages: {}
+targets:
+  JinsMemeIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: JinsMemeIOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.JinsMemeIOS
+        SWIFT_VERSION: 5.10
+        INFOPLIST_FILE: JinsMemeIOS/Info.plist
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        DEVELOPMENT_TEAM: ""
+    scheme:
+      testTargets: []
+  JinsMemeMacReceiver:
+    type: application
+    platform: macOS
+    sources:
+      - path: JinsMemeMacReceiver
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.JinsMemeMacReceiver
+        SWIFT_VERSION: 5.10
+        INFOPLIST_FILE: JinsMemeMacReceiver/Info.plist
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        DEVELOPMENT_TEAM: ""
+        MACOSX_DEPLOYMENT_TARGET: 14.0
+    scheme:
+      testTargets: []
