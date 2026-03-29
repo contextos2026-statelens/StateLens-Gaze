@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(slots=True)
+@dataclass
 class CalibrationSample:
     horizontal: float
     vertical: float
@@ -35,13 +35,13 @@ def solve_affine(samples: list[CalibrationSample]) -> dict[str, list[float]]:
 
 def project(mapping: dict[str, list[float]], horizontal: float, vertical: float) -> tuple[float, float]:
     row = [horizontal, vertical, 1.0]
-    x = sum(a * b for a, b in zip(mapping["x"], row, strict=True))
-    y = sum(a * b for a, b in zip(mapping["y"], row, strict=True))
+    x = sum(a * b for a, b in zip(mapping["x"], row))
+    y = sum(a * b for a, b in zip(mapping["y"], row))
     return x, y
 
 
 def _gaussian_solve(matrix: list[list[float]], vector: list[float]) -> list[float]:
-    augmented = [row[:] + [value] for row, value in zip(matrix, vector, strict=True)]
+    augmented = [row[:] + [value] for row, value in zip(matrix, vector)]
     size = len(augmented)
 
     for col in range(size):

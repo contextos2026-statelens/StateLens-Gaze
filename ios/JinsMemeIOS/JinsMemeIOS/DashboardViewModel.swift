@@ -4,9 +4,21 @@ import Combine
 
 @MainActor
 final class DashboardViewModel: ObservableObject {
+    @Published var inputMode: InputMode = .bluetooth
+    @Published var loggerHost: String {
+        didSet {
+            UserDefaults.standard.set(loggerHost, forKey: loggerHostDefaultsKey)
+        }
+    }
+    @Published var loggerPort: String {
+        didSet {
+            UserDefaults.standard.set(loggerPort, forKey: loggerPortDefaultsKey)
+        }
+    }
     @Published var connectionState: BLEConnectionState = .idle
     @Published var statusText: String = "未接続"
     @Published var failureAlert: BLEConnectionFailure?
+    @Published var bleDiagnosticText: String = "-"
     @Published var latestFrame: SensorFrame?
     @Published var latestPacket: BLEPacketSnapshot?
     @Published var receivedPacketCount = 0
@@ -21,6 +33,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var calibrationCompletedCount = 0
 
     private let bluetoothSource = JinsMemeBLESource()
+    private let loggerBridgeSource = LoggerBridgeSource()
     private var estimator = GazeEstimator()
     private var updateTimer: AnyCancellable?
     private var bufferedLatestFrame: SensorFrame?
@@ -37,10 +50,15 @@ final class DashboardViewModel: ObservableObject {
     private var lastPacketChangeAt: Date?
     private var recentFrames: [FrameSample] = []
     private var calibrationSamples: [CalibrationSample] = []
+    private let loggerHostDefaultsKey = "stateLens.logger.host"
+    private let loggerPortDefaultsKey = "stateLens.logger.port"
 
-    private let maxAutoRetryCount = 1
-    private let stallThreshold: TimeInterval = 12
+    private let maxAutoRetryCount = 0
+    private let enableAutomaticStallRecovery = false
+    private let stallThreshold: TimeInterval = 30
     private let stallRecoveryCooldown: TimeInterval = 30
+    private let stallMonitoringWarmup: TimeInterval = 60
+    private let stallMinimumPacketsBeforeRecovery = 15
 
     let calibrationTargets: [GazePoint] = [
         GazePoint(x: 160, y: 120), GazePoint(x: 640, y: 120), GazePoint(x: 1120, y: 120),
@@ -49,9 +67,42 @@ final class DashboardViewModel: ObservableObject {
     ]
 
     init() {
+        loggerHost = UserDefaults.standard.string(forKey: loggerHostDefaultsKey) ?? "192.168.4.33"
+        loggerPort = UserDefaults.standard.string(forKey: loggerPortDefaultsKey) ?? "8765"
+        configureBluetoothCallbacks()
+        configureLoggerBridgeCallbacks()
+        startUpdateTimer()
+    }
+
+    func selectInputMode(_ mode: InputMode) {
+        guard mode != .mock else { return }
+        guard inputMode != mode else { return }
+        disconnect()
+        inputMode = mode
+        connectionState = .idle
+        statusText = mode == .bluetooth ? "未接続" : "Logger未接続"
+        bleDiagnosticText = mode == .bluetooth ? "-" : "Logger endpoint: \(loggerEndpointDescription)"
+        latestFrame = nil
+        latestPacket = nil
+        bufferedLatestFrame = nil
+        bufferedLatestPacket = nil
+        bufferedPacketCount = 0
+        receivedPacketCount = 0
+        gazeTrail = []
+        latestPoint = GazePoint(x: 640, y: 360)
+        estimator = GazeEstimator()
+    }
+
+    private func configureBluetoothCallbacks() {
         bluetoothSource.onStatusChange = { [weak self] status in
             Task { @MainActor in
                 self?.statusText = status
+            }
+        }
+
+        bluetoothSource.onDiagnosticInfo = { [weak self] text in
+            Task { @MainActor in
+                self?.bleDiagnosticText = text
             }
         }
 
@@ -97,8 +148,46 @@ final class DashboardViewModel: ObservableObject {
                 self?.trimRecentFrames()
             }
         }
+    }
 
-        startUpdateTimer()
+    private func configureLoggerBridgeCallbacks() {
+        loggerBridgeSource.onStatusChange = { [weak self] status in
+            Task { @MainActor in
+                self?.statusText = status
+            }
+        }
+
+        loggerBridgeSource.onDiagnosticInfo = { [weak self] text in
+            Task { @MainActor in
+                self?.bleDiagnosticText = text
+            }
+        }
+
+        loggerBridgeSource.onConnectionStateChange = { [weak self] state in
+            Task { @MainActor in
+                self?.connectionState = state
+                self?.syncStatus(for: state)
+                if case .failed(let failure) = state {
+                    self?.handleConnectionFailure(failure)
+                }
+            }
+        }
+
+        loggerBridgeSource.onRawPacket = { [weak self] packet in
+            Task { @MainActor in
+                self?.bufferedLatestPacket = packet
+                self?.bufferedPacketCount += 1
+                self?.lastPacketChangeAt = .now
+            }
+        }
+
+        loggerBridgeSource.onFrame = { [weak self] frame in
+            Task { @MainActor in
+                self?.bufferedLatestFrame = frame
+                self?.recentFrames.append(FrameSample(frame: frame, timestamp: .now))
+                self?.trimRecentFrames()
+            }
+        }
     }
 
     func connectToMeme() {
@@ -112,6 +201,7 @@ final class DashboardViewModel: ObservableObject {
 
         if resetUIState {
             failureAlert = nil
+            bleDiagnosticText = "-"
             latestFrame = nil
             latestPacket = nil
             receivedPacketCount = 0
@@ -130,7 +220,20 @@ final class DashboardViewModel: ObservableObject {
             autoRetryCount = 0
         }
 
-        bluetoothSource.start()
+        if inputMode == .bluetooth {
+            bluetoothSource.start()
+        } else {
+            guard let endpointURL = loggerEndpointURL else {
+                failureAlert = BLEConnectionFailure(
+                    title: "Logger連携に失敗しました",
+                    reason: "Logger連携先URLが不正です。",
+                    recoverySuggestion: "Host と Port を確認してください。"
+                )
+                return
+            }
+            loggerBridgeSource.setEndpointURL(endpointURL)
+            loggerBridgeSource.start()
+        }
     }
 
     func startCalibration() {
@@ -191,6 +294,7 @@ final class DashboardViewModel: ObservableObject {
         autoRetryTask?.cancel()
         autoRetryTask = nil
         bluetoothSource.stop()
+        loggerBridgeSource.stop()
     }
 
     var calibrationProgressText: String {
@@ -230,6 +334,10 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func handleConnectionFailure(_ failure: BLEConnectionFailure) {
+        guard inputMode == .bluetooth else {
+            failureAlert = failure
+            return
+        }
         if autoRetryCount < maxAutoRetryCount {
             autoRetryCount += 1
             statusText = "接続失敗。自動再試行 \(autoRetryCount)/\(maxAutoRetryCount)"
@@ -245,12 +353,18 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func recoverIfStalled() {
+        guard inputMode == .bluetooth else { return }
+        guard enableAutomaticStallRecovery else { return }
         guard case .connected = connectionState else { return }
-        guard connectedAt != nil else { return }
-        guard bufferedPacketCount > packetCountAtConnect else { return }
-        guard let lastPacketChangeAt else { return }
-
+        guard let connectedAt else { return }
         let now = Date()
+
+        // 接続直後は通知間隔が安定しないため、停止判定をしない。
+        guard now.timeIntervalSince(connectedAt) >= stallMonitoringWarmup else { return }
+
+        let packetsSinceConnect = bufferedPacketCount - packetCountAtConnect
+        guard packetsSinceConnect >= stallMinimumPacketsBeforeRecovery else { return }
+        guard let lastPacketChangeAt else { return }
         let stalled = now.timeIntervalSince(lastPacketChangeAt) >= stallThreshold
         guard stalled else { return }
 
@@ -280,7 +394,7 @@ final class DashboardViewModel: ObservableObject {
         case .failed:
             return "再接続する"
         case .idle:
-            return "MEMEに接続"
+            return inputMode == .bluetooth ? "MEMEに接続" : "Loggerに接続"
         }
     }
 
@@ -302,7 +416,7 @@ final class DashboardViewModel: ObservableObject {
         case .idle:
             statusText = "未接続"
         case .scanning:
-            statusText = "JINS MEMEを探しています"
+            statusText = inputMode == .bluetooth ? "JINS MEMEを探しています" : "Logger連携サーバーへ接続中"
         case .connecting(let deviceName):
             statusText = "\(deviceName) に接続中"
         case .connected(let deviceName):
@@ -312,6 +426,28 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    var connectionSectionTitle: String {
+        inputMode == .bluetooth ? "BLE接続" : "Logger連携"
+    }
+
+    var loggerEndpointDescription: String {
+        "http://\(loggerHost):\(loggerPort)/api/state"
+    }
+
+    private var loggerEndpointURL: URL? {
+        let host = loggerHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        let portText = loggerPort.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !host.isEmpty else { return nil }
+        guard let port = Int(portText), (1...65535).contains(port) else { return nil }
+
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = host
+        components.port = port
+        components.path = "/api/state"
+        return components.url
+    }
+
     private func startUpdateTimer() {
         updateTimer?.cancel()
         updateTimer = Timer.publish(every: 1.0, on: .main, in: .common)
@@ -319,12 +455,15 @@ final class DashboardViewModel: ObservableObject {
             .sink { [weak self] _ in
                 guard let self else { return }
                 let previousFrame = self.latestFrame
-                self.latestFrame = self.bufferedLatestFrame
-                self.latestPacket = self.bufferedLatestPacket
+
+                if let packet = self.bufferedLatestPacket {
+                    self.latestPacket = packet
+                }
                 self.receivedPacketCount = self.bufferedPacketCount
-                self.displayUpdatedAt = .now
-                self.triggerBlinkIfNeeded(previous: previousFrame, current: self.bufferedLatestFrame)
+
                 if let frame = self.bufferedLatestFrame {
+                    self.latestFrame = frame
+                    self.triggerBlinkIfNeeded(previous: previousFrame, current: frame)
                     let point = self.estimator.ingest(frame)
                     self.latestPoint = point
                     self.gazeTrail.append(point)
@@ -332,6 +471,8 @@ final class DashboardViewModel: ObservableObject {
                         self.gazeTrail.removeFirst(self.gazeTrail.count - 120)
                     }
                 }
+                self.displayUpdatedAt = .now
+                self.recoverIfStalled()
             }
     }
 

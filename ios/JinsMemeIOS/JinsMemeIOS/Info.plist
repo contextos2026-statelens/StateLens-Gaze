@@ -28,6 +28,11 @@
   <string>StateLens : Gaze で MEME からセンサーデータを受信するために Bluetooth を使用します。</string>
   <key>NSLocalNetworkUsageDescription</key>
   <string>近くの iPhone / iPad / Mac に視線データを共有するためにローカルネットワークを使用します。</string>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
   <key>NSBonjourServices</key>
   <array>
     <string>_jinsmeme._tcp</string>

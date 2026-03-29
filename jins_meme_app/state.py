@@ -11,7 +11,7 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-@dataclass(slots=True)
+@dataclass
 class AppState:
     history_limit: int = 180
     ema_alpha: float = 0.28

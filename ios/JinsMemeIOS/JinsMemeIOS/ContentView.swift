@@ -38,10 +38,39 @@ struct ContentView: View {
 
     private var connectionCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("BLE接続")
+            Text(viewModel.connectionSectionTitle)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(palette.accent)
+
+            Picker(
+                "入力モード",
+                selection: Binding(
+                    get: { viewModel.inputMode },
+                    set: { viewModel.selectInputMode($0) }
+                )
+            ) {
+                Text(InputMode.bluetooth.displayName).tag(InputMode.bluetooth)
+                Text(InputMode.loggerBridge.displayName).tag(InputMode.loggerBridge)
+            }
+            .pickerStyle(.segmented)
+
+            if viewModel.inputMode == .loggerBridge {
+                HStack(spacing: 8) {
+                    TextField("Host", text: $viewModel.loggerHost)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .keyboardType(.URL)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Port", text: $viewModel.loggerPort)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 96)
+                }
+                Text("連携先: \(viewModel.loggerEndpointDescription)")
+                    .font(.caption2)
+                    .foregroundStyle(palette.textSecondary)
+            }
 
             Text("MEME接続ステータス")
                 .font(.title2)
@@ -74,6 +103,16 @@ struct ContentView: View {
             Text(viewModel.statusText)
                 .font(.footnote)
                 .foregroundStyle(palette.textSecondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("BLE診断")
+                    .font(.caption2)
+                    .foregroundStyle(palette.textSecondary)
+                Text(viewModel.bleDiagnosticText)
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundStyle(palette.textPrimary)
+                    .textSelection(.enabled)
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
