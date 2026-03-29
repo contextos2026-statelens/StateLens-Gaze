@@ -38,7 +38,7 @@ final class DashboardViewModel: ObservableObject {
     private var recentFrames: [FrameSample] = []
     private var calibrationSamples: [CalibrationSample] = []
 
-    private let maxAutoRetryCount = 3
+    private let maxAutoRetryCount = 1
     private let stallThreshold: TimeInterval = 12
     private let stallRecoveryCooldown: TimeInterval = 30
 
@@ -235,7 +235,7 @@ final class DashboardViewModel: ObservableObject {
             statusText = "接続失敗。自動再試行 \(autoRetryCount)/\(maxAutoRetryCount)"
             autoRetryTask?.cancel()
             autoRetryTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: .seconds(5))
                 guard let self, !Task.isCancelled else { return }
                 self.bluetoothSource.start()
             }
@@ -324,7 +324,6 @@ final class DashboardViewModel: ObservableObject {
                 self.receivedPacketCount = self.bufferedPacketCount
                 self.displayUpdatedAt = .now
                 self.triggerBlinkIfNeeded(previous: previousFrame, current: self.bufferedLatestFrame)
-                self.recoverIfStalled()
                 if let frame = self.bufferedLatestFrame {
                     let point = self.estimator.ingest(frame)
                     self.latestPoint = point
