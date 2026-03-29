@@ -219,22 +219,34 @@ final class JinsMemeBLESource: NSObject, SensorSource {
     private var usingSavedUUIDs = false
     private var notificationCountSinceConnect = 0
     private var savedUUIDValidationWorkItem: DispatchWorkItem?
-    private var didProbeWritableCharacteristics = false
     private var probedWriteCharacteristicIDs: Set<CBUUID> = []
     private var discoveredServiceIDs: [CBUUID] = []
     private var discoveredCharacteristicLines: [String] = []
     private var lastDiagnosticEmitAt: Date = .distantPast
     private var streamWriteCharacteristic: CBCharacteristic?
+    private var streamNotifyCharacteristic: CBCharacteristic?
     private var writeCharacteristicCandidates: [CBCharacteristic] = []
     private var currentWriteCharacteristicIndex = 0
     private var lastNotificationAt: Date = .distantPast
-    private var streamRestartWorkItem: DispatchWorkItem?
-    private var streamKeepAliveWorkItem: DispatchWorkItem?
-    private var inSessionCommandProbeWorkItem: DispatchWorkItem?
-    private var streamRestartAttempts = 0
-    private var inSessionCommandProbeAttempts = 0
+    private var startCommandProbeWorkItem: DispatchWorkItem?
+    private var startCommandRetryWorkItem: DispatchWorkItem?
+    private var startCommandProbeOrder: [Int] = []
+    private var startCommandProbeCursor = 0
+    private var activeStartCommandIndex: Int?
+    private var currentProbeWriteType: CBCharacteristicWriteType?
+    private var triedAlternateWriteTypeForCurrentCommand = false
+    private var probeWindowPackets: [ProbePacketSample] = []
+    private var isStreamingEstablished = false
+    private var streamEstablishedAt: Date?
+    private var packetsSinceStreamEstablished = 0
+    private var streamMaintainWorkItem: DispatchWorkItem?
+    private var streamSilenceWorkItem: DispatchWorkItem?
+    private var streamReadPollingWorkItem: DispatchWorkItem?
+    private var lastStreamCommandSentAt: Date = .distantPast
+    private var lastFallbackAttemptAt: Date = .distantPast
+    private var didExhaustStartCommandsInSession = false
+    private var lastProbeMetrics: StartProbeMetrics?
     private var notifySubscriptionReady = false
-    private var didSendInitialStartCommand = false
     private var connectedAt: Date?
     private var diagnosticEvents: [String] = []
 
@@ -252,25 +264,39 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         characteristicObservations = [:]
         usingSavedUUIDs = configuration.isUsingPersistedUUIDFallback
         notificationCountSinceConnect = 0
-        didProbeWritableCharacteristics = false
         probedWriteCharacteristicIDs = []
         discoveredServiceIDs = []
         discoveredCharacteristicLines = []
         lastDiagnosticEmitAt = .distantPast
         streamWriteCharacteristic = nil
+        streamNotifyCharacteristic = nil
         writeCharacteristicCandidates = []
         currentWriteCharacteristicIndex = 0
         lastNotificationAt = .distantPast
-        streamRestartWorkItem?.cancel()
-        streamRestartWorkItem = nil
-        streamKeepAliveWorkItem?.cancel()
-        streamKeepAliveWorkItem = nil
-        inSessionCommandProbeWorkItem?.cancel()
-        inSessionCommandProbeWorkItem = nil
-        streamRestartAttempts = 0
-        inSessionCommandProbeAttempts = 0
+        startCommandProbeWorkItem?.cancel()
+        startCommandProbeWorkItem = nil
+        startCommandRetryWorkItem?.cancel()
+        startCommandRetryWorkItem = nil
+        startCommandProbeOrder = []
+        startCommandProbeCursor = 0
+        activeStartCommandIndex = nil
+        currentProbeWriteType = nil
+        triedAlternateWriteTypeForCurrentCommand = false
+        probeWindowPackets = []
+        isStreamingEstablished = false
+        streamEstablishedAt = nil
+        packetsSinceStreamEstablished = 0
+        streamMaintainWorkItem?.cancel()
+        streamMaintainWorkItem = nil
+        streamSilenceWorkItem?.cancel()
+        streamSilenceWorkItem = nil
+        streamReadPollingWorkItem?.cancel()
+        streamReadPollingWorkItem = nil
+        lastStreamCommandSentAt = .distantPast
+        lastFallbackAttemptAt = .distantPast
+        didExhaustStartCommandsInSession = false
+        lastProbeMetrics = nil
         notifySubscriptionReady = false
-        didSendInitialStartCommand = false
         connectedAt = nil
         diagnosticEvents = []
         savedUUIDValidationWorkItem?.cancel()
@@ -292,24 +318,38 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         characteristicObservations = [:]
         savedUUIDValidationWorkItem?.cancel()
         savedUUIDValidationWorkItem = nil
-        didProbeWritableCharacteristics = false
         probedWriteCharacteristicIDs = []
         discoveredServiceIDs = []
         discoveredCharacteristicLines = []
         streamWriteCharacteristic = nil
+        streamNotifyCharacteristic = nil
         writeCharacteristicCandidates = []
         currentWriteCharacteristicIndex = 0
         lastNotificationAt = .distantPast
-        streamRestartWorkItem?.cancel()
-        streamRestartWorkItem = nil
-        streamKeepAliveWorkItem?.cancel()
-        streamKeepAliveWorkItem = nil
-        inSessionCommandProbeWorkItem?.cancel()
-        inSessionCommandProbeWorkItem = nil
-        streamRestartAttempts = 0
-        inSessionCommandProbeAttempts = 0
+        startCommandProbeWorkItem?.cancel()
+        startCommandProbeWorkItem = nil
+        startCommandRetryWorkItem?.cancel()
+        startCommandRetryWorkItem = nil
+        startCommandProbeOrder = []
+        startCommandProbeCursor = 0
+        activeStartCommandIndex = nil
+        currentProbeWriteType = nil
+        triedAlternateWriteTypeForCurrentCommand = false
+        probeWindowPackets = []
+        isStreamingEstablished = false
+        streamEstablishedAt = nil
+        packetsSinceStreamEstablished = 0
+        streamMaintainWorkItem?.cancel()
+        streamMaintainWorkItem = nil
+        streamSilenceWorkItem?.cancel()
+        streamSilenceWorkItem = nil
+        streamReadPollingWorkItem?.cancel()
+        streamReadPollingWorkItem = nil
+        lastStreamCommandSentAt = .distantPast
+        lastFallbackAttemptAt = .distantPast
+        didExhaustStartCommandsInSession = false
+        lastProbeMetrics = nil
         notifySubscriptionReady = false
-        didSendInitialStartCommand = false
         connectedAt = nil
         diagnosticEvents = []
         centralManager?.stopScan()
@@ -324,13 +364,10 @@ final class JinsMemeBLESource: NSObject, SensorSource {
     private func handleNotification(_ data: Data) -> Bool {
         notificationCountSinceConnect += 1
         if notificationCountSinceConnect == 1 {
-            inSessionCommandProbeWorkItem?.cancel()
-            inSessionCommandProbeWorkItem = nil
             addDiagnosticEvent("最初の通知データを受信")
         }
         lastNotificationAt = .now
-        streamRestartAttempts = 0
-        scheduleStreamRestartWatchdog()
+        recordProbePacket(data)
         onRawPacket?(
             BLEPacketSnapshot(
                 receivedAt: .now,
@@ -343,11 +380,40 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         )
         if let frame = parseFrame(data) {
             onFrame?(frame)
+            if !isStreamingEstablished {
+                markStreamEstablished()
+            } else {
+                packetsSinceStreamEstablished += 1
+            }
             return true
         } else {
             onStatusChange?("通知受信中: パーサ設定待ち")
             return false
         }
+    }
+
+    private func markStreamEstablished() {
+        isStreamingEstablished = true
+        streamEstablishedAt = .now
+        packetsSinceStreamEstablished = 1
+        didExhaustStartCommandsInSession = false
+        lastProbeMetrics = nil
+        startCommandProbeWorkItem?.cancel()
+        startCommandProbeWorkItem = nil
+        startCommandRetryWorkItem?.cancel()
+        startCommandRetryWorkItem = nil
+        if let activeStartCommandIndex {
+            configuration.savePreferredStreamStartCommandIndex(activeStartCommandIndex)
+            let command = configuration.streamStartCommandCandidates[activeStartCommandIndex]
+            let hex = command.map { String(format: "%02X", $0) }.joined(separator: " ")
+            onStatusChange?("ストリーム開始を確認: cmd[\(hex)]")
+            addDiagnosticEvent("開始コマンド確定: [\(hex)]")
+        } else {
+            onStatusChange?("ストリーム開始を確認")
+        }
+        guard let connectedPeripheral else { return }
+        scheduleStreamMaintainPulse(peripheral: connectedPeripheral)
+        scheduleStreamSilenceWatchdog(peripheral: connectedPeripheral)
     }
 
     private func recordObservation(
@@ -382,148 +448,424 @@ final class JinsMemeBLESource: NSObject, SensorSource {
     private func sendStreamStartCommand(
         peripheral: CBPeripheral,
         characteristic: CBCharacteristic,
+        commandIndex: Int,
+        preferredWriteType: CBCharacteristicWriteType? = nil,
         reason: String,
         announceStatus: Bool = true
-    ) {
+    ) -> Bool {
         let props = characteristic.properties
         let supportsWriteWithoutResponse = props.contains(.writeWithoutResponse)
         let supportsWriteWithResponse = props.contains(.write)
-        guard supportsWriteWithoutResponse || supportsWriteWithResponse else { return }
+        guard supportsWriteWithoutResponse || supportsWriteWithResponse else { return false }
+        guard commandIndex >= 0 && commandIndex < configuration.streamStartCommandCandidates.count else { return false }
 
-        let writeType: CBCharacteristicWriteType = supportsWriteWithoutResponse ? .withoutResponse : .withResponse
-        let command = configuration.selectedStreamStartCommand
-        peripheral.writeValue(command, for: characteristic, type: writeType)
-        let hex = command.map { String(format: "%02X", $0) }.joined(separator: " ")
-        if announceStatus {
-            onStatusChange?("\(reason): \(characteristic.uuid.uuidString) cmd[\(hex)]")
+        let writeType: CBCharacteristicWriteType
+        if let preferredWriteType {
+            switch preferredWriteType {
+            case .withResponse:
+                guard supportsWriteWithResponse else { return false }
+                writeType = .withResponse
+            case .withoutResponse:
+                guard supportsWriteWithoutResponse else { return false }
+                writeType = .withoutResponse
+            @unknown default:
+                guard supportsWriteWithResponse else { return false }
+                writeType = .withResponse
+            }
+        } else {
+            writeType = supportsWriteWithResponse ? .withResponse : .withoutResponse
         }
-        addDiagnosticEvent("CMD[\(hex)] -> \(characteristic.uuid.uuidString)")
+        let command = configuration.streamStartCommandCandidates[commandIndex]
+        peripheral.writeValue(command, for: characteristic, type: writeType)
+        lastStreamCommandSentAt = .now
+        let hex = command.map { String(format: "%02X", $0) }.joined(separator: " ")
+        let modeText = writeType == .withResponse ? "REQ" : "CMD"
+        if announceStatus {
+            onStatusChange?("\(reason): \(characteristic.uuid.uuidString) cmd[\(hex)] \(modeText)")
+        }
+        addDiagnosticEvent("CMD[\(hex)] \(modeText) -> \(characteristic.uuid.uuidString)")
+        return true
     }
 
-    private func sendInitialStartCommandIfReady(peripheral: CBPeripheral) {
+    private func buildStartCommandProbeOrder() -> [Int] {
+        var order: [Int] = []
+        if let preferred = configuration.preferredStreamStartCommandIndex {
+            order.append(preferred)
+        }
+        for index in configuration.streamStartCommandCandidates.indices where !order.contains(index) {
+            order.append(index)
+        }
+        return order
+    }
+
+    private func preferredProbeWriteType(for characteristic: CBCharacteristic) -> CBCharacteristicWriteType? {
+        let props = characteristic.properties
+        let supportsWNR = props.contains(.writeWithoutResponse)
+        let supportsWR = props.contains(.write)
+        if supportsWNR { return .withoutResponse }
+        if supportsWR { return .withResponse }
+        return nil
+    }
+
+    private func alternateProbeWriteType(for characteristic: CBCharacteristic, current: CBCharacteristicWriteType) -> CBCharacteristicWriteType? {
+        let props = characteristic.properties
+        let supportsWNR = props.contains(.writeWithoutResponse)
+        let supportsWR = props.contains(.write)
+        if current == .withoutResponse, supportsWR { return .withResponse }
+        if current == .withResponse, supportsWNR { return .withoutResponse }
+        return nil
+    }
+
+    private func beginLoggerLikeStartSequenceIfReady(peripheral: CBPeripheral) {
         guard notifySubscriptionReady else { return }
-        guard !didSendInitialStartCommand else { return }
+        guard configuration.enableStreamStartCommandProbe else { return }
+        guard streamWriteCharacteristic != nil else { return }
+        guard !isStreamingEstablished else { return }
+
+        if startCommandProbeOrder.isEmpty {
+            startCommandProbeOrder = buildStartCommandProbeOrder()
+            startCommandProbeCursor = 0
+        }
+        guard !startCommandProbeOrder.isEmpty else { return }
+
+        startCommandProbeWorkItem?.cancel()
+        let delay = configuration.streamStartProbeInitialDelay
+        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+            guard self.hasStartedConnectionFlow else { return }
+            guard self.connectedPeripheral === peripheral else { return }
+            self.sendCurrentProbeCommand(
+                peripheral: peripheral,
+                reason: "通知有効化完了。Logger手順で開始コマンド送信"
+            )
+        }
+        startCommandProbeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func sendCurrentProbeCommand(peripheral: CBPeripheral, reason: String) {
+        guard notifySubscriptionReady else { return }
         guard let writeCharacteristic = streamWriteCharacteristic else { return }
-        didSendInitialStartCommand = true
-        sendStreamStartCommand(
+        guard startCommandProbeCursor < startCommandProbeOrder.count else { return }
+
+        let index = startCommandProbeOrder[startCommandProbeCursor]
+        activeStartCommandIndex = index
+        if currentProbeWriteType == nil {
+            currentProbeWriteType = preferredProbeWriteType(for: writeCharacteristic)
+        }
+        triedAlternateWriteTypeForCurrentCommand = false
+        probeWindowPackets = []
+        let sent = sendStreamStartCommand(
             peripheral: peripheral,
             characteristic: writeCharacteristic,
-            reason: "通知有効化完了。ストリーム開始コマンドを送信"
+            commandIndex: index,
+            preferredWriteType: currentProbeWriteType,
+            reason: reason
         )
-        scheduleInSessionCommandProbeIfNoData()
-        schedulePeriodicStreamKeepAlive()
+        guard sent else { return }
+        scheduleStartCommandProbeEvaluation(peripheral: peripheral)
+    }
+
+    private func scheduleStartCommandProbeEvaluation(peripheral: CBPeripheral) {
+        startCommandProbeWorkItem?.cancel()
+        let interval = configuration.streamStartProbeEvaluationInterval
+        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+            guard self.hasStartedConnectionFlow else { return }
+            guard self.connectedPeripheral === peripheral else { return }
+            guard self.notifySubscriptionReady else { return }
+            guard !self.isStreamingEstablished else { return }
+            self.evaluateProbeAndAdvanceIfNeeded(peripheral: peripheral)
+        }
+        startCommandProbeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
+    }
+
+    private func evaluateProbeAndAdvanceIfNeeded(peripheral: CBPeripheral) {
+        guard let activeIndex = activeStartCommandIndex else { return }
+        let metrics = currentProbeMetrics()
+        lastProbeMetrics = metrics
+        let activeCommand = configuration.streamStartCommandCandidates[activeIndex]
+        let activeHex = activeCommand.map { String(format: "%02X", $0) }.joined(separator: " ")
+        addDiagnosticEvent(
+            "候補評価 cmd[\(activeHex)] rate=\(String(format: "%.1f", metrics.packetRateHz))Hz unique=\(metrics.distinctCount)"
+        )
+
+        if hasStableStreamInProbeWindow() {
+            onStatusChange?("通知ストリームを確認: cmd[\(activeHex)]")
+            addDiagnosticEvent("通知ストリーム確立: [\(activeHex)]")
+            markStreamEstablished()
+            return
+        }
+
+        if !triedAlternateWriteTypeForCurrentCommand,
+           let writeCharacteristic = streamWriteCharacteristic,
+           let currentType = currentProbeWriteType,
+           let alternateType = alternateProbeWriteType(for: writeCharacteristic, current: currentType) {
+            triedAlternateWriteTypeForCurrentCommand = true
+            currentProbeWriteType = alternateType
+            probeWindowPackets = []
+            let fromMode = currentType == .withResponse ? "REQ" : "CMD"
+            let toMode = alternateType == .withResponse ? "REQ" : "CMD"
+            let message = "同一cmdでWriteType切替: \(fromMode) -> \(toMode)"
+            onStatusChange?(message)
+            addDiagnosticEvent(message)
+            let sent = sendStreamStartCommand(
+                peripheral: peripheral,
+                characteristic: writeCharacteristic,
+                commandIndex: activeIndex,
+                preferredWriteType: alternateType,
+                reason: "同一cmdを別WriteTypeで再試行"
+            )
+            if sent {
+                scheduleStartCommandProbeEvaluation(peripheral: peripheral)
+                return
+            }
+        }
+
+        if startCommandProbeCursor + 1 < startCommandProbeOrder.count {
+            let previous = activeHex
+            startCommandProbeCursor += 1
+            let nextIndex = startCommandProbeOrder[startCommandProbeCursor]
+            let next = configuration.streamStartCommandCandidates[nextIndex].map { String(format: "%02X", $0) }.joined(separator: " ")
+            let message = "Logger手順で開始コマンド切替: [\(previous)] -> [\(next)]"
+            onStatusChange?(message)
+            addDiagnosticEvent(message)
+            currentProbeWriteType = nil
+            triedAlternateWriteTypeForCurrentCommand = false
+            sendCurrentProbeCommand(peripheral: peripheral, reason: "データ未確定のため開始コマンド再試行")
+            return
+        }
+
+        if switchToNextWriteCharacteristicIfAvailable() {
+            startCommandProbeOrder = buildStartCommandProbeOrder()
+            startCommandProbeCursor = 0
+            activeStartCommandIndex = nil
+            currentProbeWriteType = nil
+            triedAlternateWriteTypeForCurrentCommand = false
+            addDiagnosticEvent("書込Characteristic切替後に開始コマンドを再試行")
+            sendCurrentProbeCommand(peripheral: peripheral, reason: "書込Characteristic切替後の再試行")
+            return
+        }
+
+        didExhaustStartCommandsInSession = true
+        onStatusChange?("開始コマンド候補を全試行済み。通知待機中")
+        addDiagnosticEvent("開始コマンド候補を全試行済み")
+        scheduleReadPollingFallback(peripheral: peripheral)
+        scheduleStartCommandProbeRetry(peripheral: peripheral)
+    }
+
+    private func scheduleStartCommandProbeRetry(peripheral: CBPeripheral) {
+        startCommandRetryWorkItem?.cancel()
+        let interval = configuration.streamStartProbeRetryInterval
+        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+            guard self.hasStartedConnectionFlow else { return }
+            guard self.connectedPeripheral === peripheral else { return }
+            guard self.notifySubscriptionReady else { return }
+            guard !self.isStreamingEstablished else { return }
+            self.startCommandProbeOrder = self.buildStartCommandProbeOrder()
+            self.startCommandProbeCursor = 0
+            self.activeStartCommandIndex = nil
+            self.currentProbeWriteType = nil
+            self.triedAlternateWriteTypeForCurrentCommand = false
+            self.sendCurrentProbeCommand(peripheral: peripheral, reason: "開始コマンド再試行")
+        }
+        startCommandRetryWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
+    }
+
+    private func scheduleStreamMaintainPulse(peripheral: CBPeripheral) {
+        streamMaintainWorkItem?.cancel()
+        let interval = configuration.streamMaintainPulseInterval
+        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+            guard self.hasStartedConnectionFlow else { return }
+            guard self.connectedPeripheral === peripheral else { return }
+            guard self.notifySubscriptionReady, self.isStreamingEstablished else { return }
+            // 常時再送は切断要因になりうるため、無通信兆候がある時のみ維持パルスを送る。
+            let silence = Date().timeIntervalSince(self.lastNotificationAt)
+            let maintainThreshold = self.configuration.streamSilenceThreshold * 0.75
+            if silence >= maintainThreshold {
+                self.sendActiveStreamCommand(
+                    peripheral: peripheral,
+                    reason: "ストリーム維持コマンド送信",
+                    minInterval: self.configuration.streamMaintainPulseInterval * 0.6
+                )
+            }
+            self.scheduleStreamMaintainPulse(peripheral: peripheral)
+        }
+        streamMaintainWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
+    }
+
+    private func scheduleStreamSilenceWatchdog(peripheral: CBPeripheral) {
+        streamSilenceWorkItem?.cancel()
+        let interval = configuration.streamSilenceCheckInterval
+        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+            guard self.hasStartedConnectionFlow else { return }
+            guard self.connectedPeripheral === peripheral else { return }
+            guard self.notifySubscriptionReady, self.isStreamingEstablished else { return }
+
+            let now = Date()
+            let silence = now.timeIntervalSince(self.lastNotificationAt)
+            if silence >= self.configuration.streamSilenceThreshold {
+                let earlyDrop = self.isEarlyStreamDrop(now: now)
+                let cooldown = now.timeIntervalSince(self.lastFallbackAttemptAt) >= self.configuration.streamFallbackCommandCooldown
+                if cooldown {
+                    self.lastFallbackAttemptAt = now
+                    if earlyDrop {
+                        self.switchToNextStartCommandAndSend(
+                            peripheral: peripheral,
+                            reasonPrefix: "早期途絶のため開始コマンド切替"
+                        )
+                    } else {
+                        self.sendActiveStreamCommand(
+                            peripheral: peripheral,
+                            reason: "通知途絶のため再開コマンド送信",
+                            minInterval: 0.5
+                        )
+                    }
+                }
+            }
+            self.scheduleStreamSilenceWatchdog(peripheral: peripheral)
+        }
+        streamSilenceWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
+    }
+
+    private func scheduleReadPollingFallback(peripheral: CBPeripheral) {
+        guard configuration.enableReadPollingFallback else { return }
+        guard let notifyCharacteristic = streamNotifyCharacteristic else { return }
+        guard notifyCharacteristic.properties.contains(.read) else { return }
+
+        streamReadPollingWorkItem?.cancel()
+        let interval = configuration.readPollingInterval
+        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+            guard self.hasStartedConnectionFlow else { return }
+            guard self.connectedPeripheral === peripheral else { return }
+            guard self.notifySubscriptionReady else { return }
+            guard let notifyCharacteristic = self.streamNotifyCharacteristic else { return }
+            guard notifyCharacteristic.properties.contains(.read) else { return }
+
+            // 通知が流れない個体向けフォールバック: Readを定期実行して最新値を取得する。
+            let silence = Date().timeIntervalSince(self.lastNotificationAt)
+            if !self.isStreamingEstablished || silence >= self.configuration.streamSilenceThreshold {
+                peripheral.readValue(for: notifyCharacteristic)
+            }
+            self.scheduleReadPollingFallback(peripheral: peripheral)
+        }
+        streamReadPollingWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
+    }
+
+    private func isEarlyStreamDrop(now: Date) -> Bool {
+        guard let streamEstablishedAt else { return false }
+        let elapsed = now.timeIntervalSince(streamEstablishedAt)
+        return elapsed <= configuration.streamEarlyDropWindow
+            && packetsSinceStreamEstablished <= configuration.streamEarlyDropPacketThreshold
+    }
+
+    private func sendActiveStreamCommand(
+        peripheral: CBPeripheral,
+        reason: String,
+        minInterval: TimeInterval
+    ) {
+        guard let writeCharacteristic = streamWriteCharacteristic else { return }
+        let resolvedIndex = activeStartCommandIndex
+            ?? configuration.preferredStreamStartCommandIndex
+            ?? startCommandProbeOrder.first
+        guard let activeIndex = resolvedIndex else { return }
+        if activeStartCommandIndex == nil {
+            activeStartCommandIndex = activeIndex
+        }
+        let now = Date()
+        guard now.timeIntervalSince(lastStreamCommandSentAt) >= minInterval else { return }
+        let sent = sendStreamStartCommand(
+            peripheral: peripheral,
+            characteristic: writeCharacteristic,
+            commandIndex: activeIndex,
+            preferredWriteType: currentProbeWriteType ?? preferredProbeWriteType(for: writeCharacteristic),
+            reason: reason,
+            announceStatus: false
+        )
+        if sent {
+            lastStreamCommandSentAt = now
+        }
+    }
+
+    private func switchToNextStartCommandAndSend(peripheral: CBPeripheral, reasonPrefix: String) {
+        guard let writeCharacteristic = streamWriteCharacteristic else { return }
+        if startCommandProbeOrder.isEmpty {
+            startCommandProbeOrder = buildStartCommandProbeOrder()
+        }
+        guard !startCommandProbeOrder.isEmpty else { return }
+
+        let currentIndex = activeStartCommandIndex ?? startCommandProbeOrder[0]
+        guard let currentPosition = startCommandProbeOrder.firstIndex(of: currentIndex) else { return }
+        let nextPosition = (currentPosition + 1) % startCommandProbeOrder.count
+        guard nextPosition != currentPosition else { return }
+        let nextIndex = startCommandProbeOrder[nextPosition]
+        guard nextIndex != currentIndex else { return }
+
+        startCommandProbeCursor = nextPosition
+        activeStartCommandIndex = nextIndex
+        currentProbeWriteType = nil
+        triedAlternateWriteTypeForCurrentCommand = false
+
+        let previousHex = configuration.streamStartCommandCandidates[currentIndex].map { String(format: "%02X", $0) }.joined(separator: " ")
+        let nextHex = configuration.streamStartCommandCandidates[nextIndex].map { String(format: "%02X", $0) }.joined(separator: " ")
+        let message = "\(reasonPrefix): [\(previousHex)] -> [\(nextHex)]"
+        onStatusChange?(message)
+        addDiagnosticEvent(message)
+        let sent = sendStreamStartCommand(
+            peripheral: peripheral,
+            characteristic: writeCharacteristic,
+            commandIndex: nextIndex,
+            preferredWriteType: preferredProbeWriteType(for: writeCharacteristic),
+            reason: "再開コマンド送信",
+            announceStatus: false
+        )
+        if sent {
+            lastStreamCommandSentAt = .now
+        }
+    }
+
+    private func recordProbePacket(_ data: Data) {
+        guard activeStartCommandIndex != nil else { return }
+        let digest = data.prefix(20).map { String(format: "%02X", $0) }.joined(separator: "")
+        probeWindowPackets.append(ProbePacketSample(timestamp: .now, digest: digest))
+        let cutoff = Date().addingTimeInterval(-configuration.streamStartProbeWindow)
+        probeWindowPackets.removeAll { $0.timestamp < cutoff }
+    }
+
+    private func currentProbeMetrics() -> StartProbeMetrics {
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-configuration.streamStartProbeWindow)
+        let recent = probeWindowPackets.filter { $0.timestamp >= cutoff }
+        let duration = max(0.1, configuration.streamStartProbeWindow)
+        let rate = Double(recent.count) / duration
+        let distinctCount = Set(recent.map(\.digest)).count
+        return StartProbeMetrics(packetRateHz: rate, distinctCount: distinctCount)
+    }
+
+    private func hasStableStreamInProbeWindow() -> Bool {
+        let metrics = currentProbeMetrics()
+        return metrics.packetRateHz >= configuration.streamStartProbeMinimumPacketRateHz
+            && metrics.distinctCount >= configuration.streamStartProbeMinimumDistinctPackets
     }
 
     private func switchToNextWriteCharacteristicIfAvailable() -> Bool {
         guard currentWriteCharacteristicIndex + 1 < writeCharacteristicCandidates.count else { return false }
         currentWriteCharacteristicIndex += 1
         streamWriteCharacteristic = writeCharacteristicCandidates[currentWriteCharacteristicIndex]
-        inSessionCommandProbeAttempts = 0
+        currentProbeWriteType = nil
         if let streamWriteCharacteristic {
             addDiagnosticEvent("同一接続で書込Characteristic切替: \(streamWriteCharacteristic.uuid.uuidString)")
         }
         return streamWriteCharacteristic != nil
-    }
-
-    private func scheduleInSessionCommandProbeIfNoData() {
-        inSessionCommandProbeWorkItem?.cancel()
-        guard configuration.enableInSessionStreamCommandProbe else { return }
-        guard hasStartedConnectionFlow else { return }
-        guard let peripheral = connectedPeripheral else { return }
-        guard streamWriteCharacteristic != nil else { return }
-
-        let maxAttempts = max(0, configuration.streamStartCommandCandidates.count - 1)
-        guard inSessionCommandProbeAttempts < maxAttempts || currentWriteCharacteristicIndex + 1 < writeCharacteristicCandidates.count else { return }
-
-        let interval = configuration.inSessionStreamCommandProbeInterval
-        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
-            guard let self, let peripheral else { return }
-            guard self.hasStartedConnectionFlow else { return }
-            guard self.connectedPeripheral === peripheral else { return }
-            guard self.notifySubscriptionReady, self.didSendInitialStartCommand else { return }
-            guard self.notificationCountSinceConnect == 0 else { return }
-            if self.inSessionCommandProbeAttempts >= maxAttempts {
-                guard self.switchToNextWriteCharacteristicIfAvailable() else { return }
-            }
-            guard let writeCharacteristic = self.streamWriteCharacteristic else { return }
-
-            let previous = self.configuration.selectedStreamStartCommand.map { String(format: "%02X", $0) }.joined(separator: " ")
-            self.configuration.advanceStreamStartCommandCandidate()
-            let next = self.configuration.selectedStreamStartCommand.map { String(format: "%02X", $0) }.joined(separator: " ")
-            self.inSessionCommandProbeAttempts += 1
-            self.addDiagnosticEvent("同一接続で開始コマンド切替: [\(previous)] -> [\(next)]")
-            self.sendStreamStartCommand(
-                peripheral: peripheral,
-                characteristic: writeCharacteristic,
-                reason: "データ未受信のため開始コマンド切替",
-                announceStatus: false
-            )
-            self.scheduleInSessionCommandProbeIfNoData()
-        }
-        inSessionCommandProbeWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
-    }
-
-    private func schedulePeriodicStreamKeepAlive() {
-        streamKeepAliveWorkItem?.cancel()
-        guard configuration.enablePeriodicStreamKeepAlive else { return }
-        guard let peripheral = connectedPeripheral else { return }
-        guard streamWriteCharacteristic != nil else { return }
-
-        let interval = configuration.streamKeepAliveInterval
-        let silenceThreshold = configuration.streamKeepAliveSilenceThreshold
-        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
-            guard let self, let peripheral else { return }
-            guard self.hasStartedConnectionFlow else { return }
-            guard self.connectedPeripheral === peripheral else { return }
-            guard self.notifySubscriptionReady, self.didSendInitialStartCommand else { return }
-            guard self.notificationCountSinceConnect > 0 else {
-                self.schedulePeriodicStreamKeepAlive()
-                return
-            }
-            guard let writeCharacteristic = self.streamWriteCharacteristic else { return }
-
-            let silence = Date().timeIntervalSince(self.lastNotificationAt)
-            if silence >= silenceThreshold {
-                self.sendStreamStartCommand(
-                    peripheral: peripheral,
-                    characteristic: writeCharacteristic,
-                    reason: "ストリーム維持コマンド送信",
-                    announceStatus: false
-                )
-            }
-            self.schedulePeriodicStreamKeepAlive()
-        }
-        streamKeepAliveWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
-    }
-
-    private func scheduleStreamRestartWatchdog() {
-        streamRestartWorkItem?.cancel()
-        guard configuration.enableStreamSilenceRestart else { return }
-        guard hasStartedConnectionFlow else { return }
-        guard let peripheral = connectedPeripheral, let writeCharacteristic = streamWriteCharacteristic else { return }
-
-        let threshold = configuration.streamSilenceRestartThreshold
-        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
-            guard let self, let peripheral else { return }
-            guard self.hasStartedConnectionFlow else { return }
-            guard self.connectedPeripheral === peripheral else { return }
-            let silence = Date().timeIntervalSince(self.lastNotificationAt)
-            guard silence >= threshold else {
-                self.scheduleStreamRestartWatchdog()
-                return
-            }
-            guard self.streamRestartAttempts < self.configuration.maxStreamRestartAttemptsPerSilence else { return }
-            self.streamRestartAttempts += 1
-            self.sendStreamStartCommand(
-                peripheral: peripheral,
-                characteristic: writeCharacteristic,
-                reason: "通知停止を検知したためストリーム再開コマンド送信"
-            )
-        }
-        streamRestartWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + threshold, execute: workItem)
     }
 
     private func probeStreamStartIfNeeded(
@@ -544,13 +886,31 @@ final class JinsMemeBLESource: NSObject, SensorSource {
            characteristic.uuid == targetWrite {
             currentWriteCharacteristicIndex = max(0, writeCharacteristicCandidates.count - 1)
             streamWriteCharacteristic = characteristic
+            currentProbeWriteType = nil
         } else if streamWriteCharacteristic == nil {
             currentWriteCharacteristicIndex = max(0, writeCharacteristicCandidates.count - 1)
             streamWriteCharacteristic = characteristic
+            currentProbeWriteType = nil
         }
         addDiagnosticEvent("WRITE候補追加: \(characteristic.uuid.uuidString) [\(characteristicPropertiesText(props))]")
-        sendInitialStartCommandIfReady(peripheral: peripheral)
-        scheduleStreamRestartWatchdog()
+        beginLoggerLikeStartSequenceIfReady(peripheral: peripheral)
+    }
+
+    private func shouldEnableNotification(for characteristic: CBCharacteristic) -> Bool {
+        guard characteristic.properties.contains(.notify) || characteristic.properties.contains(.indicate) else {
+            return false
+        }
+        if let selectedNotifyCharacteristicID {
+            return characteristic.uuid == selectedNotifyCharacteristicID
+        }
+        if let configuredNotifyUUID = configuration.resolvedNotifyCharacteristicUUID.map({ CBUUID(nsuuid: $0) }) {
+            return characteristic.uuid == configuredNotifyUUID
+        }
+        if let configuredServiceUUID = configuration.resolvedServiceUUID.map({ CBUUID(nsuuid: $0) }),
+           characteristic.service?.uuid != configuredServiceUUID {
+            return false
+        }
+        return true
     }
 
     private func parseFrame(_ data: Data) -> SensorFrame? {
@@ -703,7 +1063,21 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         return parts.joined(separator: "/")
     }
 
-    private func disconnectReasonText(_ error: Error?) -> String {
+    private func disconnectReasonText(
+        _ error: Error?,
+        receivedCount: Int,
+        didExhaustStartCommands: Bool,
+        lastProbeMetrics: StartProbeMetrics?
+    ) -> String {
+        if error == nil, receivedCount == 0 {
+            if didExhaustStartCommands {
+                if let lastProbeMetrics {
+                    return "通知データ0件のまま切断されました（error=nil）。開始コマンド候補を全試行しましたが通知開始を確認できませんでした（rate=\(String(format: "%.1f", lastProbeMetrics.packetRateHz))Hz unique=\(lastProbeMetrics.distinctCount)）。"
+                }
+                return "通知データ0件のまま切断されました（error=nil）。開始コマンド候補を全試行しましたが通知開始を確認できませんでした。"
+            }
+            return "通知データ0件のまま切断されました（error=nil）。デバイス側でストリーム開始前に接続が終了した可能性があります。"
+        }
         guard let error else { return "接続後に切断されました（error=nil）" }
         if let cbError = error as? CBError {
             return "接続後に切断されました（CBError: \(cbError.code.rawValue) \(cbError.code)）"
@@ -711,13 +1085,26 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         let nsError = error as NSError
         return "接続後に切断されました（\(nsError.domain):\(nsError.code) \(nsError.localizedDescription)）"
     }
+
+    private func disconnectRecoverySuggestion(receivedCount: Int, didExhaustStartCommands: Bool) -> String {
+        if receivedCount == 0, didExhaustStartCommands {
+            return "JINS MEME Loggerなど他アプリを完全終了し、MEMEを再起動して装着状態で再接続してください。改善しない場合はLogger連携モードを利用してください。"
+        }
+        if receivedCount == 0 {
+            return "MEMEを再起動し、端末を近づけて再接続してください。必要に応じて再接続を数回試してください。"
+        }
+        return "端末を近づけて、電池残量を確認し、再接続してください。"
+    }
 }
 
 private struct MemeBinaryFrameParser {
     private var baseline = [Double](repeating: 0, count: 4)
+    private var noiseFloor = [Double](repeating: 160, count: 4)
     private var baselineInitialized = false
-    private var movementScale = 520.0
-    private var blinkAverage = 150.0
+    private var stableFrameCount = 0
+    private var smoothedHorizontal = 0.0
+    private var smoothedVertical = 0.0
+    private var smoothedBlink = 0.0
 
     mutating func parse20BytePacket(_ data: Data) -> SensorFrame? {
         guard data.count >= 8, data.count % 2 == 0 else { return nil }
@@ -728,59 +1115,50 @@ private struct MemeBinaryFrameParser {
             return Double(Int16(bitPattern: lo | hi))
         }
         guard words.count >= 4 else { return nil }
-
-        let channels = selectChannels(from: words)
+        // JINS MEME G2系の20byte通知は先頭4wordがEOG由来チャネルとして最も安定しやすい。
+        let channels = Array(words.prefix(4))
         if !baselineInitialized {
             baseline = channels
             baselineInitialized = true
-        } else {
-            for i in 0..<4 {
-                baseline[i] = baseline[i] * 0.96 + channels[i] * 0.04
-            }
         }
 
-        let deltaLeft = channels[0] - baseline[0]
-        let deltaRight = channels[1] - baseline[1]
-        let deltaUp = channels[2] - baseline[2]
-        let deltaDown = channels[3] - baseline[3]
+        var deltas = [Double](repeating: 0, count: 4)
+        for i in 0..<4 {
+            let delta = channels[i] - baseline[i]
+            deltas[i] = delta
 
-        let horizontalRaw = deltaRight - deltaLeft
-        let verticalRaw = deltaUp - deltaDown
-        let movementMagnitude = max(abs(horizontalRaw), abs(verticalRaw))
-        movementScale = max(220, movementScale * 0.985 + movementMagnitude * 0.015)
+            // 平常時のみベースラインに追従させ、眼球運動/瞬目イベント時は追従を抑制。
+            let gate = max(noiseFloor[i] * 5.5, 900)
+            if abs(delta) < gate {
+                baseline[i] = baseline[i] * 0.985 + channels[i] * 0.015
+            }
+            noiseFloor[i] = noiseFloor[i] * 0.985 + abs(delta) * 0.015
+        }
+        stableFrameCount = min(stableFrameCount + 1, 9999)
 
-        let horizontal = tanh(horizontalRaw / (movementScale * 1.25)).clamped(to: -1...1)
-        let vertical = tanh(verticalRaw / (movementScale * 1.25)).clamped(to: -1...1)
+        let horizontalRaw = deltas[1] - deltas[0]
+        let verticalRaw = deltas[2] - deltas[3]
+        let eogScale = max(600, noiseFloor.reduce(0, +) / 4.0 * 12.0)
 
-        let blinkRaw = abs(deltaLeft) + abs(deltaRight)
-        blinkAverage = blinkAverage * 0.92 + blinkRaw * 0.08
-        let blinkStrength = ((blinkRaw - blinkAverage * 0.9) / max(100, blinkAverage * 0.8)).clamped(to: 0...1)
+        let horizontal = (horizontalRaw / eogScale).clamped(to: -1...1)
+        let vertical = (verticalRaw / eogScale).clamped(to: -1...1)
+
+        let blinkRaw = max(abs(deltas[0]), abs(deltas[1]))
+        let blinkThreshold = max(120, max(noiseFloor[0], noiseFloor[1]) * 3.8)
+        let blinkStrength = ((blinkRaw - blinkThreshold) / max(80, blinkThreshold)).clamped(to: 0...1)
+
+        // 初期学習中は大きな跳ねを抑えて安定化。
+        let alpha: Double = stableFrameCount < 12 ? 0.18 : 0.34
+        smoothedHorizontal = smoothedHorizontal * (1 - alpha) + horizontal * alpha
+        smoothedVertical = smoothedVertical * (1 - alpha) + vertical * alpha
+        smoothedBlink = smoothedBlink * 0.70 + blinkStrength * 0.30
 
         return SensorFrame(
-            horizontal: horizontal,
-            vertical: vertical,
-            blinkStrength: blinkStrength,
+            horizontal: smoothedHorizontal.clamped(to: -1...1),
+            vertical: smoothedVertical.clamped(to: -1...1),
+            blinkStrength: smoothedBlink.clamped(to: 0...1),
             source: "bluetooth/g2-binary-\(data.count)b"
         )
-    }
-
-    private func selectChannels(from words: [Double]) -> [Double] {
-        guard words.count > 4 else { return Array(words.prefix(4)) }
-        let startCandidates = 0...(words.count - 4)
-        let start = startCandidates.max { lhs, rhs in
-            score(windowStart: lhs, words: words) < score(windowStart: rhs, words: words)
-        } ?? 0
-        return Array(words[start..<(start + 4)])
-    }
-
-    private func score(windowStart: Int, words: [Double]) -> Double {
-        let window = Array(words[windowStart..<(windowStart + 4)])
-        let meanAbs = window.map(abs).reduce(0, +) / 4.0
-        if !baselineInitialized {
-            return -meanAbs
-        }
-        let distance = zip(window, baseline).map { abs($0 - $1) }.reduce(0, +)
-        return -(distance + meanAbs * 0.05)
     }
 }
 
@@ -788,6 +1166,16 @@ private extension Double {
     func clamped(to range: ClosedRange<Double>) -> Double {
         min(max(self, range.lowerBound), range.upperBound)
     }
+}
+
+private struct ProbePacketSample {
+    let timestamp: Date
+    let digest: String
+}
+
+private struct StartProbeMetrics {
+    let packetRateHz: Double
+    let distinctCount: Int
 }
 
 private struct CharacteristicObservation {
@@ -858,10 +1246,31 @@ extension JinsMemeBLESource: CBCentralManagerDelegate, CBPeripheralDelegate {
         notifyConnectionState(.connected(deviceName: peripheral.name ?? "JINS MEME"))
         connectedAt = .now
         lastNotificationAt = .now
-        inSessionCommandProbeAttempts = 0
+        notificationCountSinceConnect = 0
+        isStreamingEstablished = false
+        startCommandProbeOrder = buildStartCommandProbeOrder()
+        startCommandProbeCursor = 0
+        activeStartCommandIndex = nil
+        currentProbeWriteType = nil
+        triedAlternateWriteTypeForCurrentCommand = false
+        probeWindowPackets = []
+        startCommandProbeWorkItem?.cancel()
+        startCommandProbeWorkItem = nil
+        startCommandRetryWorkItem?.cancel()
+        startCommandRetryWorkItem = nil
+        streamMaintainWorkItem?.cancel()
+        streamMaintainWorkItem = nil
+        streamSilenceWorkItem?.cancel()
+        streamSilenceWorkItem = nil
+        streamReadPollingWorkItem?.cancel()
+        streamReadPollingWorkItem = nil
+        streamEstablishedAt = nil
+        packetsSinceStreamEstablished = 0
+        lastFallbackAttemptAt = .distantPast
+        lastStreamCommandSentAt = .distantPast
+        didExhaustStartCommandsInSession = false
+        lastProbeMetrics = nil
         notifySubscriptionReady = false
-        didSendInitialStartCommand = false
-        scheduleStreamRestartWatchdog()
         if usingSavedUUIDs {
             let validation = DispatchWorkItem { [weak self, weak peripheral] in
                 guard let self, let peripheral else { return }
@@ -892,42 +1301,56 @@ extension JinsMemeBLESource: CBCentralManagerDelegate, CBPeripheralDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        let receivedCount = characteristicObservations.values.map(\.totalCount).reduce(0, +)
+        let didExhaustStartCommandsAtDisconnect = didExhaustStartCommandsInSession
+        let lastProbeMetricsAtDisconnect = lastProbeMetrics
+
         savedUUIDValidationWorkItem?.cancel()
         savedUUIDValidationWorkItem = nil
-        streamRestartWorkItem?.cancel()
-        streamRestartWorkItem = nil
-        streamKeepAliveWorkItem?.cancel()
-        streamKeepAliveWorkItem = nil
-        inSessionCommandProbeWorkItem?.cancel()
-        inSessionCommandProbeWorkItem = nil
+        startCommandProbeWorkItem?.cancel()
+        startCommandProbeWorkItem = nil
+        startCommandRetryWorkItem?.cancel()
+        startCommandRetryWorkItem = nil
+        streamMaintainWorkItem?.cancel()
+        streamMaintainWorkItem = nil
+        streamSilenceWorkItem?.cancel()
+        streamSilenceWorkItem = nil
+        streamReadPollingWorkItem?.cancel()
+        streamReadPollingWorkItem = nil
         streamWriteCharacteristic = nil
+        streamNotifyCharacteristic = nil
         writeCharacteristicCandidates = []
         currentWriteCharacteristicIndex = 0
-        streamRestartAttempts = 0
-        inSessionCommandProbeAttempts = 0
+        startCommandProbeOrder = []
+        startCommandProbeCursor = 0
+        activeStartCommandIndex = nil
+        currentProbeWriteType = nil
+        triedAlternateWriteTypeForCurrentCommand = false
+        probeWindowPackets = []
+        isStreamingEstablished = false
+        streamEstablishedAt = nil
+        packetsSinceStreamEstablished = 0
+        lastFallbackAttemptAt = .distantPast
+        lastStreamCommandSentAt = .distantPast
+        didExhaustStartCommandsInSession = false
+        lastProbeMetrics = nil
         notifySubscriptionReady = false
-        didSendInitialStartCommand = false
         connectedPeripheral = nil
-        let receivedCount = characteristicObservations.values.map(\.totalCount).reduce(0, +)
-        let connectionDuration = Date().timeIntervalSince(connectedAt ?? Date())
-        let shouldAdvanceCandidate =
-            receivedCount == 0
-            || (connectionDuration <= configuration.streamCommandProbeDisconnectThreshold
-                && receivedCount < 2)
-        if shouldAdvanceCandidate {
-            let previous = configuration.selectedStreamStartCommand.map { String(format: "%02X", $0) }.joined(separator: " ")
-            configuration.advanceStreamStartCommandCandidate()
-            let next = configuration.selectedStreamStartCommand.map { String(format: "%02X", $0) }.joined(separator: " ")
-            let message = "早期切断のため開始コマンド候補を切替: [\(previous)] -> [\(next)]"
-            onStatusChange?(message)
-            addDiagnosticEvent(message)
-        }
+        addDiagnosticEvent("切断: 受信パケット\(receivedCount)件")
         connectedAt = nil
         if hasStartedConnectionFlow {
             let failure = BLEConnectionFailure(
                 title: "接続が切断されました",
-                reason: disconnectReasonText(error),
-                recoverySuggestion: "端末を近づけて、電池残量を確認し、再接続してください。"
+                reason: disconnectReasonText(
+                    error,
+                    receivedCount: receivedCount,
+                    didExhaustStartCommands: didExhaustStartCommandsAtDisconnect,
+                    lastProbeMetrics: lastProbeMetricsAtDisconnect
+                ),
+                recoverySuggestion: disconnectRecoverySuggestion(
+                    receivedCount: receivedCount,
+                    didExhaustStartCommands: didExhaustStartCommandsAtDisconnect
+                )
             )
             onStatusChange?("切断されました")
             notifyConnectionState(.failed(failure))
@@ -966,7 +1389,7 @@ extension JinsMemeBLESource: CBCentralManagerDelegate, CBPeripheralDelegate {
         emitDiagnosticSummaryIfNeeded(force: true)
 
         service.characteristics?.forEach { characteristic in
-            if characteristic.properties.contains(.notify) || characteristic.properties.contains(.indicate) {
+            if shouldEnableNotification(for: characteristic) {
                 peripheral.setNotifyValue(true, for: characteristic)
                 onStatusChange?("通知待機中: \(characteristic.uuid.uuidString)")
             }
@@ -1005,6 +1428,14 @@ extension JinsMemeBLESource: CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error {
+            addDiagnosticEvent("WRITE失敗: \(characteristic.uuid.uuidString) \(error.localizedDescription)")
+            return
+        }
+        addDiagnosticEvent("WRITE成功: \(characteristic.uuid.uuidString)")
+    }
+
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if let error {
             onStatusChange?("通知設定失敗: \(error.localizedDescription)")
@@ -1012,7 +1443,13 @@ extension JinsMemeBLESource: CBCentralManagerDelegate, CBPeripheralDelegate {
         }
         guard characteristic.isNotifying else { return }
         notifySubscriptionReady = true
+        streamNotifyCharacteristic = characteristic
+        selectedNotifyCharacteristicID = characteristic.uuid
+        selectedServiceID = characteristic.service?.uuid
+        configuration.saveResolved(serviceUUID: selectedServiceID, notifyUUID: selectedNotifyCharacteristicID)
         onStatusChange?("通知有効化完了: \(characteristic.uuid.uuidString)")
-        sendInitialStartCommandIfReady(peripheral: peripheral)
+        beginLoggerLikeStartSequenceIfReady(peripheral: peripheral)
+        scheduleReadPollingFallback(peripheral: peripheral)
+        addDiagnosticEvent("READフォールバック待機: \(characteristic.uuid.uuidString)")
     }
 }

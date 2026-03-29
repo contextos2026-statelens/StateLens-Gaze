@@ -19,6 +19,13 @@
 		9F3BAEF1F155812C7D153C5D /* GazeEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61E880C811A7675485C425D8 /* GazeEstimator.swift */; };
 		E3A75D80473D489389120D7A /* MacReceiverViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3443BB62915609167FFFD84F /* MacReceiverViewModel.swift */; };
 		FC57ECA5DC4D36D1A04062C7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8C7EF499725FAE08ABBD92 /* ContentView.swift */; };
+		AA0001017A5CE2265C4B3B01 /* ConnectTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001027A5CE2265C4B3B01 /* ConnectTab.swift */; };
+		AA0001037A5CE2265C4B3B01 /* LoggerTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001047A5CE2265C4B3B01 /* LoggerTab.swift */; };
+		AA0001057A5CE2265C4B3B01 /* MiniLineChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001067A5CE2265C4B3B01 /* MiniLineChartView.swift */; };
+		AA0001077A5CE2265C4B3B01 /* CSVTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001087A5CE2265C4B3B01 /* CSVTab.swift */; };
+		AA0001097A5CE2265C4B3B01 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00010A7A5CE2265C4B3B01 /* SettingsTab.swift */; };
+		AA00010B7A5CE2265C4B3B01 /* CSVRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00010C7A5CE2265C4B3B01 /* CSVRecorder.swift */; };
+		AA00010D7A5CE2265C4B3B01 /* GazeTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00010E7A5CE2265C4B3B01 /* GazeTab.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +45,13 @@
 		C16358987919374F76D222E9 /* JinsMemeIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JinsMemeIOSApp.swift; sourceTree = "<group>"; };
 		E5ED038C61FD1B1E055326D1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F3653E30CE6B65E8D3F88316 /* PeerRelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerRelayService.swift; sourceTree = "<group>"; };
+		AA0001027A5CE2265C4B3B01 /* ConnectTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectTab.swift; sourceTree = "<group>"; };
+		AA0001047A5CE2265C4B3B01 /* LoggerTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggerTab.swift; sourceTree = "<group>"; };
+		AA0001067A5CE2265C4B3B01 /* MiniLineChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniLineChartView.swift; sourceTree = "<group>"; };
+		AA0001087A5CE2265C4B3B01 /* CSVTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVTab.swift; sourceTree = "<group>"; };
+		AA00010A7A5CE2265C4B3B01 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
+		AA00010C7A5CE2265C4B3B01 /* CSVRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVRecorder.swift; sourceTree = "<group>"; };
+		AA00010E7A5CE2265C4B3B01 /* GazeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GazeTab.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -76,6 +90,13 @@
 			isa = PBXGroup;
 			children = (
 				AA8C7EF499725FAE08ABBD92 /* ContentView.swift */,
+				AA0001027A5CE2265C4B3B01 /* ConnectTab.swift */,
+				AA0001047A5CE2265C4B3B01 /* LoggerTab.swift */,
+				AA0001067A5CE2265C4B3B01 /* MiniLineChartView.swift */,
+				AA0001087A5CE2265C4B3B01 /* CSVTab.swift */,
+				AA00010A7A5CE2265C4B3B01 /* SettingsTab.swift */,
+				AA00010E7A5CE2265C4B3B01 /* GazeTab.swift */,
+				AA00010C7A5CE2265C4B3B01 /* CSVRecorder.swift */,
 				7099879573FB2455D9350FD3 /* DashboardViewModel.swift */,
 				61E880C811A7675485C425D8 /* GazeEstimator.swift */,
 				BA52FD368FE8CE98AA16DE75 /* Info.plist */,
@@ -164,6 +185,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				FC57ECA5DC4D36D1A04062C7 /* ContentView.swift in Sources */,
+				AA0001017A5CE2265C4B3B01 /* ConnectTab.swift in Sources */,
+				AA0001037A5CE2265C4B3B01 /* LoggerTab.swift in Sources */,
+				AA0001057A5CE2265C4B3B01 /* MiniLineChartView.swift in Sources */,
+				AA0001077A5CE2265C4B3B01 /* CSVTab.swift in Sources */,
+				AA0001097A5CE2265C4B3B01 /* SettingsTab.swift in Sources */,
+				AA00010B7A5CE2265C4B3B01 /* CSVRecorder.swift in Sources */,
+				AA00010D7A5CE2265C4B3B01 /* GazeTab.swift in Sources */,
 				383DAB4581313B4BFC57AB22 /* DashboardViewModel.swift in Sources */,
 				9F3BAEF1F155812C7D153C5D /* GazeEstimator.swift in Sources */,
 				8BF8545C7D31DBAEC8271C84 /* JinsMemeIOSApp.swift in Sources */,

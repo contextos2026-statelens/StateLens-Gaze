@@ -1,68 +1,49 @@
-# StateLens : Gaze
+# StateLens : Gaze (JINS MEME Logger 互換版)
 
-`StateLens : Gaze` は、MEMEデバイスからBLEで取得したセンサーデータをiPhone上で可視化するアプリです。  
-リアルタイム表示、視線マップ表示、9点キャリブレーション、接続安定化（自動再試行）までを含みます。
+`StateLens : Gaze` は、MEMEデバイスからBLEで取得したセンサーデータを可視化・記録するiOSアプリです。
+公式アプリ「JINS MEME Logger」と同等の4タブ（接続・ロガー・CSV・設定）構造に、従来の「Gaze（視線トラッキング・較正）」機能を統合した5タブ構成へと進化しました。
 
-## 構成
+## アプリ構成（5タブ）
 
-- iPhoneアプリ（メイン）: `ios/JinsMemeIOS/JinsMemeIOS`
-- Mac受信用ターゲット（任意）: `ios/JinsMemeIOS/JinsMemeMacReceiver`
-- 旧Webデモ（補助）: `app.py`, `static/`, `tests/`
+1. **🔗 接続 (Connect)**
+   - BLEスキャン、接続、切断
+   - Logger連携モード（Macでの受信データをブリッジ）
+   - BLE通信の診断情報やパケット受信ステータスの表示
+2. **📝 ロガー (Logger)**
+   - リアルタイムデータ表示（まばたき、視線移動、加速度、角度など6セクション構成）
+   - 各種値の推移を示すミニチャート表示
+   - バックグラウンドでのCSVデータ記録の開始・停止
+3. **📂 CSV**
+   - デバイス内に保存された記録済みCSVファイルの一覧表示
+   - OS標準の共有シートを利用した外部アプリへのファイル出力・共有
+   - ファイルの個別削除および複数ファイルの一括削除
+4. **⚙️ 設定 (Settings)**
+   - データの自動保存、保存周期、ジャイロ・加速度取得のON/OFF
+   - UserDefaultsを利用したアプリ設定の永続化
+5. **👁 Gaze**
+   - 視線データの2Dマップ表示（現在点 + 軌跡）
+   - 精度の高い視線推定を行うための9点キャリブレーション機能
 
-## 現在の機能
+## 最新のアップデート（2026-03-29）
 
-- BLE接続（スキャン・接続・通知購読）
-- 接続状態表示
-  - 成功: 青
-  - 失敗: 赤 + 理由ポップアップ
-- センサーデータ表示（1秒更新）
-  - 水平値
-  - 垂直値
-  - まばたき強度
-  - 受信時刻 / 表示更新時刻 / 生データHEX
-- 値が変化した項目の緑点滅表示
-- 視線マップ（現在点 + 軌跡）
-- 9点キャリブレーション
-  - 開始 / 点記録 / リセット
-  - 進捗表示
-- 接続安定化
-  - 接続失敗時の自動再試行
-  - 受信停止検知時の再接続
-  - 接続セッション単位での監視（前回受信時刻による誤検知を防止）
+### 1. JINS MEME Logger 互換UIへの刷新
+- 単一Scroll画面からTabViewを用いたモダンな5タブ構成に全面リニューアル。
+- `CSVRecorder` を新規実装し、取得したセンサーデータ（`SensorFrame` および拡張データ）のCSVファイル保存機能を追加。
 
-## 最新更新（2026-03-29）
-
-- 9点キャリブレーション失敗対策
-  - 記録時に直近フレームを平均化して保存
-  - 係数計算で特異行列時に正則化フォールバックを追加
-- 接続安定化の見直し
-  - 停止判定は「この接続で受信実績がある場合のみ」実施
-  - 停止しきい値を緩和（12秒）、再接続クールダウンを延長（30秒）
-- UI調整
-  - `StateLens : Gaze` のタイトルサイズを `MEME接続ステータス` と統一
-
-## 重要な前提（MEMEデータ仕様）
-
-JINS公開SDK終了（2024-05-20案内）により、公開された一次仕様は限定的です。  
-そのため、現在のBLEバイナリパーサは実機挙動に基づく実装です。
-
-- `SensorSources.swift` の `MemeBinaryFrameParser` で解釈
-- 主に `Int16 LE` の系列として処理し、水平/垂直/まばたきを推定
-- 実機ログに合わせて係数・マッピングを最終調整可能
-
-## 画面デザイン方針
-
-- 白カード + 濃色文字で可読性優先
-- 配色トークンを `ContentView.swift` の `AppPalette` で管理
-- タイトルは `StateLens : Gaze` に統一
+### 2. BLE接続安定化とデータ更新問題の抜本的改修
+一時的に発生していた「接続直後の切断（error=nil）」および「データ未更新」問題を解決するための通信層アップデートを実施しました：
+- **自動再接続の有効化**: 意図しない切断時に自動で再試行（最大3回）とストール復旧を行うようViewModelを設定変更。
+- **ストリーム開始の即時稼働**: JINS MEMEの切断タイムアウトを防ぐため、Notify有効化後のコマンド送信遅延を0.35秒から0.1秒へ短縮。
+- **維持パルスの無条件送信**: ストリーム確立前でも定期的に通信維持コマンドを送信し、不要な接続ドロップを抑制。
+- **データ更新の即時反映**: 1秒サイクルのタイマー更新依存から脱却し、接続直後の初回フレーム受信時には直ちにUI描画へ反映させる処理を追加。
 
 ## 開発環境
 
-- macOS + Xcode 17系
-- iOS 17+
-- SwiftUI
+- macOS / Xcode 17+
+- iOS 17.0 以降
+- Swift / SwiftUI
 
-## ビルド
+## ビルド手順
 
 ```bash
 xcodebuild \
@@ -73,47 +54,21 @@ xcodebuild \
   build
 ```
 
-## 実機実行（概要）
+## プロジェクト主要ファイル
 
-1. Xcodeで `ios/JinsMemeIOS/JinsMemeIOS.xcodeproj` を開く
-2. Signing Teamを設定
-3. iPhone実機を選択して Run
-4. アプリ起動後、`MEMEに接続` を押して接続
+- **UI / Views**
+  - `ContentView.swift` (5タブのルートコンテナ)
+  - `ConnectTab.swift`, `LoggerTab.swift`, `CSVTab.swift`, `SettingsTab.swift`, `GazeTab.swift`
+  - `MiniLineChartView.swift` (ロガー画面のチャート部品)
+- **ViewModel / Core Logic**
+  - `DashboardViewModel.swift` (UIバインディング、記録制御、BLEイベントハンドリング)
+  - `CSVRecorder.swift` (CSVのフォーマット生成・ファイル書き込み周りの管理)
+  - `SensorSources.swift` (JINS MEME用BLEパーサ、デバイス通信の根幹)
+  - `GazeEstimator.swift` (アフィン変換ベースの視線推定と較正)
+- **Models**
+  - `Models.swift` (SensorFrame拡張、アプリ内設定用構造体)
 
-## トラブルシューティング
+## 今後の課題 (Next Steps)
 
-### Xcodeで `SIGKILL` 表示になり黒画面に見える
-
-- `dyld` で停止している場合、アプリ本体コードではなくデバッガ停止の可能性があります。
-- いったん `Product > Clean Build Folder` 後に再実行してください。
-- 必要に応じて `Run Without Debugging` でも起動確認してください。
-
-### 9点記録後に較正が失敗する
-
-- 各点で0.5秒以上視線を固定してから「この点を記録」を押してください。
-- それでも失敗する場合は `リセット` 後に再実施し、中央→四隅の順でゆっくり記録してください。
-
-## 主要ファイル
-
-- モデル/状態: `ios/JinsMemeIOS/JinsMemeIOS/Models.swift`
-- BLE/パーサ: `ios/JinsMemeIOS/JinsMemeIOS/SensorSources.swift`
-- 画面状態管理: `ios/JinsMemeIOS/JinsMemeIOS/DashboardViewModel.swift`
-- UI: `ios/JinsMemeIOS/JinsMemeIOS/ContentView.swift`
-- 視線推定/較正: `ios/JinsMemeIOS/JinsMemeIOS/GazeEstimator.swift`
-
-## 現在の既知事項
-
-- デバイス固有の生データフォーマット差異がある可能性
-- 画面回転警告（`All interface orientations must be supported...`）は現状非致命
-
-## 次にやるべきこと
-
-1. 実機ログ（30〜60秒）を取得し、パーサ係数を最終固定
-2. キャリブレーションUX（自動遷移など）を改善
-3. 接続安定化パラメータ（再試行間隔/回数）を実機で最適化
-4. TestFlight向けの文言・メタデータ最終調整
-
-## 関連ドキュメント
-
-- iOS詳細: `ios/JinsMemeIOS/README_iOS.md`
-- 実装仕様: `doc/MEME_iPhone実装仕様書.md`
+1. **BLEパーサの機能拡張**: ロガータブで現在0表示となっている「加速度 / ジャイロ」等の追加データをMemeバイナリフレームから抽出する処理の実装。
+2. **実機デプロイテスト**: iPhone実機での接続テスト、および10分以上の連続CSV保存安定性チェック。

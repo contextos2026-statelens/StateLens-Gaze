@@ -32,6 +32,29 @@ final class DashboardViewModel: ObservableObject {
     @Published var calibrationTargetIndex = 0
     @Published var calibrationCompletedCount = 0
 
+    // Logger tab properties
+    @Published var loggerDataMode: LoggerDataMode = .realtime
+    @Published var isRecording = false
+    @Published var extendedData = ExtendedSensorData()
+    @Published var csvFiles: [CSVFileInfo] = []
+    @Published var pendingUploadCount = 0
+
+    // History arrays for mini charts (last 120 samples)
+    @Published var horizontalHistory: [Double] = []
+    @Published var verticalHistory: [Double] = []
+    @Published var blinkStrengthHistory: [Double] = []
+    @Published var blinkSpeedHistory: [Double] = []
+    @Published var accXHistory: [Double] = []
+    @Published var accYHistory: [Double] = []
+    @Published var accZHistory: [Double] = []
+    @Published var gyroRollHistory: [Double] = []
+    @Published var gyroPitchHistory: [Double] = []
+    @Published var gyroYawHistory: [Double] = []
+    @Published var tiltXHistory: [Double] = []
+    @Published var tiltYHistory: [Double] = []
+    @Published var isStillHistory: [Double] = []
+    @Published var noiseHistory: [Double] = []
+
     private let bluetoothSource = JinsMemeBLESource()
     private let loggerBridgeSource = LoggerBridgeSource()
     private var estimator = GazeEstimator()
@@ -52,6 +75,8 @@ final class DashboardViewModel: ObservableObject {
     private var calibrationSamples: [CalibrationSample] = []
     private let loggerHostDefaultsKey = "stateLens.logger.host"
     private let loggerPortDefaultsKey = "stateLens.logger.port"
+    private let csvRecorder = CSVRecorder()
+    private let historyMaxCount = 120
 
     private let maxAutoRetryCount = 0
     private let enableAutomaticStallRecovery = false
@@ -72,6 +97,7 @@ final class DashboardViewModel: ObservableObject {
         configureBluetoothCallbacks()
         configureLoggerBridgeCallbacks()
         startUpdateTimer()
+        refreshCSVFiles()
     }
 
     func selectInputMode(_ mode: InputMode) {
@@ -297,6 +323,51 @@ final class DashboardViewModel: ObservableObject {
         loggerBridgeSource.stop()
     }
 
+    // MARK: - Recording
+
+    func toggleRecording() {
+        if isRecording {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    private func startRecording() {
+        let deviceName: String
+        if case .connected(let name) = connectionState {
+            deviceName = name.replacingOccurrences(of: " ", with: "_")
+        } else {
+            deviceName = "UNKNOWN"
+        }
+        _ = csvRecorder.startRecording(deviceID: deviceName)
+        isRecording = true
+    }
+
+    private func stopRecording() {
+        _ = csvRecorder.stopRecording()
+        isRecording = false
+        refreshCSVFiles()
+    }
+
+    // MARK: - CSV Management
+
+    func refreshCSVFiles() {
+        csvFiles = CSVFileManager.listFiles()
+    }
+
+    func deleteCSVFiles(at indexSet: IndexSet) {
+        let filesToDelete = indexSet.map { csvFiles[$0] }
+        CSVFileManager.deleteFiles(filesToDelete)
+        refreshCSVFiles()
+    }
+
+    func deleteCSVFiles(ids: Set<String>) {
+        let filesToDelete = csvFiles.filter { ids.contains($0.id) }
+        CSVFileManager.deleteFiles(filesToDelete)
+        refreshCSVFiles()
+    }
+
     var calibrationProgressText: String {
         "\(calibrationCompletedCount)/\(calibrationTargets.count)"
     }
@@ -470,10 +541,38 @@ final class DashboardViewModel: ObservableObject {
                     if self.gazeTrail.count > 120 {
                         self.gazeTrail.removeFirst(self.gazeTrail.count - 120)
                     }
+
+                    // Update history arrays for Logger tab charts
+                    self.appendHistory(&self.horizontalHistory, value: frame.horizontal)
+                    self.appendHistory(&self.verticalHistory, value: frame.vertical)
+                    self.appendHistory(&self.blinkStrengthHistory, value: frame.blinkStrength)
+                    self.appendHistory(&self.blinkSpeedHistory, value: self.extendedData.blinkSpeed)
+                    self.appendHistory(&self.accXHistory, value: self.extendedData.accX)
+                    self.appendHistory(&self.accYHistory, value: self.extendedData.accY)
+                    self.appendHistory(&self.accZHistory, value: self.extendedData.accZ)
+                    self.appendHistory(&self.gyroRollHistory, value: self.extendedData.gyroRoll)
+                    self.appendHistory(&self.gyroPitchHistory, value: self.extendedData.gyroPitch)
+                    self.appendHistory(&self.gyroYawHistory, value: self.extendedData.gyroYaw)
+                    self.appendHistory(&self.tiltXHistory, value: self.extendedData.tiltX)
+                    self.appendHistory(&self.tiltYHistory, value: self.extendedData.tiltY)
+                    self.appendHistory(&self.isStillHistory, value: self.extendedData.isStill)
+                    self.appendHistory(&self.noiseHistory, value: self.extendedData.noise)
+
+                    // Write to CSV if recording
+                    if self.csvRecorder.isRecording {
+                        self.csvRecorder.writeFrame(frame, extended: self.extendedData)
+                    }
                 }
                 self.displayUpdatedAt = .now
                 self.recoverIfStalled()
             }
+    }
+
+    private func appendHistory(_ array: inout [Double], value: Double) {
+        array.append(value)
+        if array.count > historyMaxCount {
+            array.removeFirst(array.count - historyMaxCount)
+        }
     }
 
     private func triggerBlinkIfNeeded(previous: SensorFrame?, current: SensorFrame?) {
