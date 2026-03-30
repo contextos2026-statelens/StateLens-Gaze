@@ -1021,11 +1021,10 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         connectionTimeoutWorkItem = timeoutTask
         DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: timeoutTask)
 
-        if let serviceUUID = configuration.resolvedServiceUUID.map({ CBUUID(nsuuid: $0) }) {
-            centralManager.scanForPeripherals(withServices: [serviceUUID], options: nil)
-        } else {
-            centralManager.scanForPeripherals(withServices: nil, options: nil)
-        }
+        // BLEのアドバタイズパケットには128bitの独自Service UUIDが含まれないことが多いため、
+        // サービス指定でのスキャンは行わず、nilで全デバイスを検出し、
+        // didDiscoverデリゲート内でデバイス名によるフィルタリングを行う
+        centralManager.scanForPeripherals(withServices: nil, options: nil)
     }
 
     private func notifyConnectionState(_ state: BLEConnectionState) {

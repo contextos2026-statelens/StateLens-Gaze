@@ -155,8 +155,11 @@ struct AffineCalibration: Equatable {
 struct BLEConfiguration {
     let peripheralNameHints = [
         "JINS MEME",
+        "JINS_MEME",
         "JINSG2",
         "JINSG2_",
+        "JINS",
+        "MEME"
     ]
 
     // Confirmed from on-device BLE diagnostics.
