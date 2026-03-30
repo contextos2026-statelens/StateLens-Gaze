@@ -102,20 +102,40 @@ struct ConnectTab: View {
             .pickerStyle(.segmented)
 
             if viewModel.inputMode == .loggerBridge {
-                HStack(spacing: 8) {
-                    TextField("Host", text: $viewModel.loggerHost)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
-                        .keyboardType(.URL)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Port", text: $viewModel.loggerPort)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 96)
+                VStack(alignment: .leading, spacing: 12) {
+                    let localIP = NetworkInterfaceInfo.bestAvailableIP() ?? "未接続"
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Wi-Fiなし(屋外)で使う場合:")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.orange)
+                        Text("iPhoneの「設定 ＞ インターネット共有」をオンにすると専用IPが割り当てられます。")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 4)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Loggerアプリの「WebSocketクライアント」に以下のIPを入力して送信してください。")
+                            .font(.caption2)
+                            .foregroundColor(.primary)
+                        
+                        HStack {
+                            Text(localIP)
+                                .font(.system(.headline, design: .monospaced))
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                            
+                            Text("ポート: \(viewModel.loggerPort)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
-                Text("連携先: \(viewModel.loggerEndpointDescription)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                .transition(.opacity)
             }
         }
         .padding(16)

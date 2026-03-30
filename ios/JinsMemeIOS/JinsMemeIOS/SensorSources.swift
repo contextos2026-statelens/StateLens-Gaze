@@ -36,6 +36,8 @@ final class MockSensorSource: SensorSource {
     }
 }
 
+import Network
+
 final class LoggerBridgeSource: SensorSource {
     var onFrame: ((SensorFrame) -> Void)?
     var onStatusChange: ((String) -> Void)?
@@ -44,13 +46,12 @@ final class LoggerBridgeSource: SensorSource {
     var onDiagnosticInfo: ((String) -> Void)?
 
     private var endpointURL: URL
-    private var pollingTask: Task<Void, Never>?
+    private var listener: NWListener?
+    private var activeConnections: [NWConnection] = []
     private var hasConnected = false
-    private var consecutiveFailureCount = 0
-    private var didEmitFailure = false
-    private let failureThreshold = 4
+    private let queue = DispatchQueue(label: "com.statelens.logger.ws", qos: .userInteractive)
 
-    init(endpointURL: URL = URL(string: "http://192.168.4.33:8765/api/state")!) {
+    init(endpointURL: URL = URL(string: "http://192.168.4.33:8080")!) {
         self.endpointURL = endpointURL
     }
 
@@ -61,140 +62,152 @@ final class LoggerBridgeSource: SensorSource {
     func start() {
         stop()
         hasConnected = false
-        consecutiveFailureCount = 0
-        didEmitFailure = false
-        onStatusChange?("Logger連携サーバーへ接続中: \(endpointHostPortText)")
-        onConnectionStateChange?(.scanning)
-        onDiagnosticInfo?("Logger endpoint: \(endpointURL.absoluteString)")
+        SilentAudioPlayer.shared.start()
+        
+        // URLのポート指定（デフォルト8080）をリスナーのポートとして読み取る
+        let portUInt16 = UInt16(endpointURL.port ?? 8080)
+        let hostPortText = "0.0.0.0:\(portUInt16)"
+        
+        onStatusChange?("Logger待機中（\(hostPortText)へ送信待機）")
+        onConnectionStateChange?(.connecting(deviceName: "Local WS Server"))
+        onDiagnosticInfo?("Starting WS listener on: \(hostPortText)")
 
-        pollingTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                await self.pollOnce()
-                try? await Task.sleep(for: .milliseconds(250))
+        do {
+            let parameters = NWParameters.tcp
+            let wsOptions = NWProtocolWebSocket.Options()
+            wsOptions.autoReplyPing = true
+            parameters.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
+            
+            guard let port = NWEndpoint.Port(rawValue: portUInt16) else { return }
+            let newListener = try NWListener(using: parameters, on: port)
+            
+            newListener.stateUpdateHandler = { [weak self] state in
+                DispatchQueue.main.async {
+                    self?.handleListenerState(state)
+                }
             }
+            newListener.newConnectionHandler = { [weak self] connection in
+                self?.handleNewConnection(connection)
+            }
+            newListener.start(queue: queue)
+            self.listener = newListener
+            
+        } catch {
+            onStatusChange?("ローカルサーバー起動失敗: \(error.localizedDescription)")
+            onConnectionStateChange?(.idle)
+            onDiagnosticInfo?("Listener error: \(error)")
         }
     }
 
     func stop() {
-        pollingTask?.cancel()
-        pollingTask = nil
+        listener?.cancel()
+        listener = nil
+        for connection in activeConnections {
+            connection.cancel()
+        }
+        activeConnections.removeAll()
         hasConnected = false
-        consecutiveFailureCount = 0
-        didEmitFailure = false
+        SilentAudioPlayer.shared.stop()
         onStatusChange?("停止中")
         onConnectionStateChange?(.idle)
     }
+    
+    private func handleListenerState(_ state: NWListener.State) {
+        switch state {
+        case .ready:
+            onStatusChange?("Logger待機中（\(listener?.port?.rawValue ?? 0)番ポート）")
+            onConnectionStateChange?(.connecting(deviceName: "Local WS Server"))
+        case .failed(let error):
+            onStatusChange?("サーバー起動エラー（他のアプリがポートを使用中かもしれません）")
+            onDiagnosticInfo?("Listener failed: \(error)")
+        default:
+            break
+        }
+    }
 
-    private func pollOnce() async {
-        do {
-            let (data, response) = try await URLSession.shared.data(from: endpointURL)
-            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                throw URLError(.badServerResponse)
-            }
-
-            guard
-                let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                let latest = payload["latest"] as? [String: Any],
-                let raw = latest["raw"] as? [String: Any]
-            else {
-                consecutiveFailureCount = 0
-                if !hasConnected {
-                    onStatusChange?("Logger待機中（Loggerで記録を開始してください）")
-                    onConnectionStateChange?(.connecting(deviceName: "Logger Bridge"))
+    private func handleNewConnection(_ connection: NWConnection) {
+        activeConnections.append(connection)
+        
+        connection.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                DispatchQueue.main.async {
+                    self?.hasConnected = true
+                    self?.onStatusChange?("Loggerからデータ受信中")
+                    self?.onConnectionStateChange?(.connected(deviceName: "Logger Client"))
                 }
+                self?.receiveLoop(for: connection)
+            case .failed, .cancelled:
+                DispatchQueue.main.async {
+                    self?.activeConnections.removeAll { $0 === connection }
+                    if self?.activeConnections.isEmpty == true {
+                        self?.hasConnected = false
+                        self?.onStatusChange?("Logger待機中（切断されました）")
+                        self?.onConnectionStateChange?(.connecting(deviceName: "Local WS Server"))
+                    }
+                }
+            default:
+                break
+            }
+        }
+        connection.start(queue: queue)
+    }
+
+    private func receiveLoop(for connection: NWConnection) {
+        connection.receiveMessage { [weak self] (content, context, isComplete, error) in
+            guard let self = self else { return }
+            if error != nil {
+                connection.cancel()
                 return
             }
-
-            guard
-                let horizontal = raw["horizontal"] as? Double,
-                let vertical = raw["vertical"] as? Double
-            else {
-                return
+            if let metadata = context?.protocolMetadata.first as? NWProtocolWebSocket.Metadata,
+               (metadata.opcode == .binary || metadata.opcode == .text),
+               let data = content {
+                self.processData(data)
             }
-
-            let blink = raw["blinkStrength"] as? Double ?? 0
-            let timestamp = (latest["timestamp"] as? Double).map {
-                Date(timeIntervalSince1970: $0)
-            } ?? .now
-            let source = (raw["source"] as? String) ?? "logger/currentData"
-
-            consecutiveFailureCount = 0
-            didEmitFailure = false
-            if !hasConnected {
-                hasConnected = true
-                onConnectionStateChange?(.connected(deviceName: "Logger Bridge"))
+            if connection.state == .ready || connection.state == .preparing {
+                self.receiveLoop(for: connection)
             }
+        }
+    }
 
-            onStatusChange?("Loggerデータ受信中")
-            onFrame?(
+    private func processData(_ data: Data) {
+        guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        
+        // Wrap raw data matching
+        let raw = payload["raw"] as? [String: Any] ?? payload
+        
+        let horizontal = (raw["eogH"] as? Double) ?? (raw["eog_h"] as? Double) ?? (raw["horizontal"] as? Double) ?? 0.0
+        let vertical = (raw["eogV"] as? Double) ?? (raw["eog_v"] as? Double) ?? (raw["vertical"] as? Double) ?? 0.0
+        let blink = (raw["blinkStrength"] as? Double) ?? (raw["blink_strength"] as? Double) ?? 0.0
+        
+        var source = (raw["source"] as? String) ?? "logger/websocket"
+        if let seq = raw["seqNo"] as? Int {
+            source += " [seq:\(seq)]"
+        }
+        
+        DispatchQueue.main.async {
+            self.onFrame?(
                 SensorFrame(
-                    timestamp: timestamp,
+                    timestamp: .now,
                     horizontal: horizontal,
                     vertical: vertical,
                     blinkStrength: blink,
-                    source: source
+                    source: source,
+                    accX: (raw["accX"] as? Double) ?? 0.0,
+                    accY: (raw["accY"] as? Double) ?? 0.0,
+                    accZ: (raw["accZ"] as? Double) ?? 0.0,
+                    gyroX: (raw["gyroX"] as? Double) ?? 0.0,
+                    gyroY: (raw["gyroY"] as? Double) ?? 0.0,
+                    gyroZ: (raw["gyroZ"] as? Double) ?? 0.0
                 )
             )
-
-            let rawData = (try? JSONSerialization.data(withJSONObject: raw)) ?? Data()
-            onRawPacket?(
+            self.onRawPacket?(
                 BLEPacketSnapshot(
                     receivedAt: .now,
-                    byteCount: rawData.count,
-                    hexPreview: rawData.prefix(20).map { String(format: "%02X", $0) }.joined(separator: " ")
+                    byteCount: data.count,
+                    hexPreview: String(data: data, encoding: .utf8)?.prefix(50).map { String($0) }.joined() ?? "binary payload"
                 )
-            )
-        } catch {
-            consecutiveFailureCount += 1
-            let failure = loggerFailure(from: error)
-            onDiagnosticInfo?("Logger poll error: \(error.localizedDescription)")
-            onStatusChange?(failure.reason)
-            if consecutiveFailureCount >= failureThreshold, !didEmitFailure {
-                didEmitFailure = true
-                onConnectionStateChange?(.failed(failure))
-            }
-        }
-    }
-
-    private var endpointHostPortText: String {
-        "\(endpointURL.host ?? "Loggerサーバー"):\(endpointURL.port ?? 80)"
-    }
-
-    private func loggerFailure(from error: Error) -> BLEConnectionFailure {
-        let hostPort = endpointHostPortText
-        guard let urlError = error as? URLError else {
-            return BLEConnectionFailure(
-                title: "Logger連携に失敗しました",
-                reason: "\(hostPort) に接続できません。",
-                recoverySuggestion: "iPhoneとMacを同じWi-Fiに接続し、Mac側で受信サーバーを再起動してください。"
-            )
-        }
-
-        switch urlError.code {
-        case .notConnectedToInternet:
-            return BLEConnectionFailure(
-                title: "Logger連携に失敗しました",
-                reason: "ローカルネットワークへ到達できません（\(hostPort)）。",
-                recoverySuggestion: "iPhoneとMacを同じWi-Fiに接続し、設定 > StateLens : Gaze > ローカルネットワーク をONにして再試行してください。"
-            )
-        case .cannotFindHost, .dnsLookupFailed:
-            return BLEConnectionFailure(
-                title: "Logger連携に失敗しました",
-                reason: "ホスト名が解決できません（\(hostPort)）。",
-                recoverySuggestion: "Hostの入力値を見直し、IPアドレスを指定してください（例: 192.168.x.x）。"
-            )
-        case .cannotConnectToHost, .timedOut, .networkConnectionLost:
-            return BLEConnectionFailure(
-                title: "Logger連携に失敗しました",
-                reason: "\(hostPort) が応答しません。",
-                recoverySuggestion: "Mac側で `python3 app.py --host 0.0.0.0 --port 8765` と `node tools/jins_logger_ws_receiver.js` を起動して再試行してください。"
-            )
-        default:
-            return BLEConnectionFailure(
-                title: "Logger連携に失敗しました",
-                reason: "\(hostPort) への接続でエラーが発生しました（\(urlError.code.rawValue)）。",
-                recoverySuggestion: "ネットワーク状態と受信サーバー起動状態を確認して再試行してください。"
             )
         }
     }

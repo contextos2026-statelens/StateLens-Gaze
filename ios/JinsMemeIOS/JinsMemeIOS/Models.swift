@@ -274,3 +274,115 @@ struct BLEPacketSnapshot: Equatable {
     let byteCount: Int
     let hexPreview: String
 }
+
+enum NetworkInterfaceInfo {
+    static func getLocalIPAddresses() -> [String] {
+        var addresses = [String]()
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        
+        guard getifaddrs(&ifaddr) == 0 else { return [] }
+        guard let firstAddr = ifaddr else { return [] }
+        
+        for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
+            let interface = ptr.pointee
+            let name = String(cString: interface.ifa_name)
+            
+            // IPv4 のみを対象 (AF_INET = 2)
+            if interface.ifa_addr.pointee.sa_family == UInt8(AF_INET) {
+                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                if getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                               &hostname, socklen_t(hostname.count),
+                               nil, socklen_t(0), NI_NUMERICHOST) == 0 {
+                    let address = String(cString: hostname)
+                    // ループバック (127.0.0.1) を除外
+                    if address != "127.0.0.1" && address != "0.0.0.0" {
+                        addresses.append("\(name): \(address)")
+                    }
+                }
+            }
+        }
+        freeifaddrs(ifaddr)
+        return addresses
+    }
+    
+    static func bestAvailableIP() -> String? {
+        let all = getLocalIPAddresses()
+        
+        // テザリングのIP (bridgeインターフェース) を最優先
+        if let hotspot = all.first(where: { $0.hasPrefix("bridge") }) {
+            return hotspot.components(separatedBy: ": ").last
+        }
+        // 次に Wi-Fi (en0)
+        if let wifi = all.first(where: { $0.hasPrefix("en0") }) {
+            return wifi.components(separatedBy: ": ").last
+        }
+        
+        // pdp_ip (キャリア通信) などその他のアドレスは接続不能なため無視する
+        return nil
+    }
+}
+
+import AVFoundation
+
+final class SilentAudioPlayer {
+    static let shared = SilentAudioPlayer()
+    private let engine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    private var isPlaying = false
+    
+    private init() {
+        setupAudioSession()
+    }
+    
+    private func setupAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            // Do not active immediately, wait for start
+        } catch {
+            print("Audio session setup failed: \(error)")
+        }
+    }
+    
+    func start() {
+        guard !isPlaying else { return }
+        
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Audio session start failed: \(error)")
+        }
+        
+        engine.attach(playerNode)
+        
+        let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+        engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+        
+        // 無音のバッファを作成
+        let frameCount = AVAudioFrameCount(format.sampleRate * 2.0)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return }
+        buffer.frameLength = frameCount
+        
+        if let data = buffer.floatChannelData?[0] {
+            for i in 0..<Int(frameCount) {
+                data[i] = 0.0 // Silence
+            }
+        }
+        
+        do {
+            try engine.start()
+            playerNode.scheduleBuffer(buffer, at: nil, options: .loops, completionHandler: nil)
+            playerNode.play()
+            isPlaying = true
+        } catch {
+            print("Engine start failed: \(error)")
+        }
+    }
+    
+    func stop() {
+        guard isPlaying else { return }
+        playerNode.stop()
+        engine.stop()
+        isPlaying = false
+        try? AVAudioSession.sharedInstance().setActive(false)
+    }
+}

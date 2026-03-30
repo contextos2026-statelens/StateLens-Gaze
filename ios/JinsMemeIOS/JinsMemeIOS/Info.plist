@@ -2,53 +2,57 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleDevelopmentRegion</key>
-  <string>$(DEVELOPMENT_LANGUAGE)</string>
-  <key>CFBundleExecutable</key>
-  <string>$(EXECUTABLE_NAME)</string>
-  <key>CFBundleIdentifier</key>
-  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-  <key>CFBundleInfoDictionaryVersion</key>
-  <string>6.0</string>
-  <key>CFBundleName</key>
-  <string>$(PRODUCT_NAME)</string>
-  <key>CFBundleDisplayName</key>
-  <string>StateLens : Gaze</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleShortVersionString</key>
-  <string>$(MARKETING_VERSION)</string>
-  <key>CFBundleVersion</key>
-  <string>$(CURRENT_PROJECT_VERSION)</string>
-  <key>LSRequiresIPhoneOS</key>
-  <true/>
-  <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>StateLens : Gaze で MEME からセンサーデータを受信するために Bluetooth を使用します。</string>
-  <key>NSBluetoothPeripheralUsageDescription</key>
-  <string>StateLens : Gaze で MEME からセンサーデータを受信するために Bluetooth を使用します。</string>
-  <key>NSLocalNetworkUsageDescription</key>
-  <string>近くの iPhone / iPad / Mac に視線データを共有するためにローカルネットワークを使用します。</string>
-  <key>NSAppTransportSecurity</key>
-  <dict>
-    <key>NSAllowsLocalNetworking</key>
-    <true/>
-  </dict>
-  <key>NSBonjourServices</key>
-  <array>
-    <string>_jinsmeme._tcp</string>
-  </array>
-  <key>UIApplicationSceneManifest</key>
-  <dict>
-    <key>UIApplicationSupportsMultipleScenes</key>
-    <false/>
-  </dict>
-  <key>UILaunchScreen</key>
-  <dict/>
-  <key>UISupportedInterfaceOrientations</key>
-  <array>
-    <string>UIInterfaceOrientationPortrait</string>
-    <string>UIInterfaceOrientationLandscapeLeft</string>
-    <string>UIInterfaceOrientationLandscapeRight</string>
-  </array>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>StateLens : Gaze</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>StateLens : Gaze で MEME からセンサーデータを受信するために Bluetooth を使用します。</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>StateLens : Gaze で MEME からセンサーデータを受信するために Bluetooth を使用します。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_jinsmeme._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>近くの iPhone / iPad / Mac に視線データを共有するためにローカルネットワークを使用します。</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
 </dict>
 </plist>
