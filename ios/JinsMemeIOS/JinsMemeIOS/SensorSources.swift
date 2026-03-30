@@ -1119,6 +1119,24 @@ private struct MemeBinaryFrameParser {
     private var smoothedVertical = 0.0
     private var smoothedBlink = 0.0
 
+    // IMUスケーリング定数（デバイスIMUの典型値）
+    // 加速度: ±2g レンジ, 16bit → 1g = 16384 LSB
+    private let accScale: Double = 1.0 / 16384.0
+    // ジャイロ: ±250 dps レンジ, 16bit → 1 dps = 131 LSB
+    private let gyroScale: Double = 1.0 / 131.0
+
+    /// 20バイトパケットを解析する。
+    /// バイト構成（推定）:
+    ///   [0-1]  EOG ch0 (Int16 LE)
+    ///   [2-3]  EOG ch1 (Int16 LE)
+    ///   [4-5]  EOG ch2 (Int16 LE)
+    ///   [6-7]  EOG ch3 (Int16 LE)
+    ///   [8-9]  Acc X  (Int16 LE)
+    ///   [10-11] Acc Y  (Int16 LE)
+    ///   [12-13] Acc Z  (Int16 LE)
+    ///   [14-15] Gyro X (Int16 LE)
+    ///   [16-17] Gyro Y (Int16 LE)
+    ///   [18-19] Gyro Z (Int16 LE)
     mutating func parse20BytePacket(_ data: Data) -> SensorFrame? {
         guard data.count >= 8, data.count % 2 == 0 else { return nil }
 
@@ -1128,7 +1146,8 @@ private struct MemeBinaryFrameParser {
             return Double(Int16(bitPattern: lo | hi))
         }
         guard words.count >= 4 else { return nil }
-        // JINS MEME G2系の20byte通知は先頭4wordがEOG由来チャネルとして最も安定しやすい。
+
+        // --- EOG（先頭4ワード）---
         let channels = Array(words.prefix(4))
         if !baselineInitialized {
             baseline = channels
@@ -1139,8 +1158,6 @@ private struct MemeBinaryFrameParser {
         for i in 0..<4 {
             let delta = channels[i] - baseline[i]
             deltas[i] = delta
-
-            // 平常時のみベースラインに追従させ、眼球運動/瞬目イベント時は追従を抑制。
             let gate = max(noiseFloor[i] * 5.5, 900)
             if abs(delta) < gate {
                 baseline[i] = baseline[i] * 0.985 + channels[i] * 0.015
@@ -1152,25 +1169,44 @@ private struct MemeBinaryFrameParser {
         let horizontalRaw = deltas[1] - deltas[0]
         let verticalRaw = deltas[2] - deltas[3]
         let eogScale = max(600, noiseFloor.reduce(0, +) / 4.0 * 12.0)
-
         let horizontal = (horizontalRaw / eogScale).clamped(to: -1...1)
         let vertical = (verticalRaw / eogScale).clamped(to: -1...1)
-
         let blinkRaw = max(abs(deltas[0]), abs(deltas[1]))
         let blinkThreshold = max(120, max(noiseFloor[0], noiseFloor[1]) * 3.8)
         let blinkStrength = ((blinkRaw - blinkThreshold) / max(80, blinkThreshold)).clamped(to: 0...1)
 
-        // 初期学習中は大きな跳ねを抑えて安定化。
         let alpha: Double = stableFrameCount < 12 ? 0.18 : 0.34
         smoothedHorizontal = smoothedHorizontal * (1 - alpha) + horizontal * alpha
         smoothedVertical = smoothedVertical * (1 - alpha) + vertical * alpha
         smoothedBlink = smoothedBlink * 0.70 + blinkStrength * 0.30
 
+        // --- 6軸IMU（ワード4-9、バイト8-19）---
+        var accX = 0.0, accY = 0.0, accZ = 0.0
+        var gyroX = 0.0, gyroY = 0.0, gyroZ = 0.0
+        if words.count >= 7 {
+            // 加速度 (g単位)
+            accX = words[4] * accScale
+            accY = words[5] * accScale
+            accZ = words[6] * accScale
+        }
+        if words.count >= 10 {
+            // ジャイロ (deg/s単位)
+            gyroX = words[7] * gyroScale
+            gyroY = words[8] * gyroScale
+            gyroZ = words[9] * gyroScale
+        }
+
         return SensorFrame(
             horizontal: smoothedHorizontal.clamped(to: -1...1),
             vertical: smoothedVertical.clamped(to: -1...1),
             blinkStrength: smoothedBlink.clamped(to: 0...1),
-            source: "bluetooth/g2-binary-\(data.count)b"
+            source: "bluetooth/g2-binary-\(data.count)b",
+            accX: accX,
+            accY: accY,
+            accZ: accZ,
+            gyroX: gyroX,
+            gyroY: gyroY,
+            gyroZ: gyroZ
         )
     }
 }

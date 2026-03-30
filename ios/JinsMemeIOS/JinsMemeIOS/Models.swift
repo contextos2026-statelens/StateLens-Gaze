@@ -8,6 +8,13 @@ struct SensorFrame: Codable, Identifiable, Equatable {
     let vertical: Double
     let blinkStrength: Double
     let source: String
+    // 6軸IMUデータ（BLE 20バイトパケット byte 8-19 から抽出）
+    var accX: Double
+    var accY: Double
+    var accZ: Double
+    var gyroX: Double
+    var gyroY: Double
+    var gyroZ: Double
 
     init(
         id: UUID = UUID(),
@@ -15,7 +22,13 @@ struct SensorFrame: Codable, Identifiable, Equatable {
         horizontal: Double,
         vertical: Double,
         blinkStrength: Double,
-        source: String
+        source: String,
+        accX: Double = 0,
+        accY: Double = 0,
+        accZ: Double = 0,
+        gyroX: Double = 0,
+        gyroY: Double = 0,
+        gyroZ: Double = 0
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -23,6 +36,12 @@ struct SensorFrame: Codable, Identifiable, Equatable {
         self.vertical = vertical
         self.blinkStrength = blinkStrength
         self.source = source
+        self.accX = accX
+        self.accY = accY
+        self.accZ = accZ
+        self.gyroX = gyroX
+        self.gyroY = gyroY
+        self.gyroZ = gyroZ
     }
 }
 

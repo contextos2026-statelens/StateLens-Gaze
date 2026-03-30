@@ -547,6 +547,14 @@ final class DashboardViewModel: ObservableObject {
                         self.gazeTrail.removeFirst(self.gazeTrail.count - 120)
                     }
 
+                    // BLEパケットから抽出した6軸IMUデータをextendedDataに反映
+                    self.extendedData.accX = frame.accX
+                    self.extendedData.accY = frame.accY
+                    self.extendedData.accZ = frame.accZ
+                    self.extendedData.gyroRoll = frame.gyroX
+                    self.extendedData.gyroPitch = frame.gyroY
+                    self.extendedData.gyroYaw = frame.gyroZ
+
                     // Update history arrays for Logger tab charts
                     self.appendHistory(&self.horizontalHistory, value: frame.horizontal)
                     self.appendHistory(&self.verticalHistory, value: frame.vertical)

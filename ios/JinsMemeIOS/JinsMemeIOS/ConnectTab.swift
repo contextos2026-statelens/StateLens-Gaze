@@ -150,6 +150,43 @@ struct ConnectTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            // IMU概要（加速度・ジャイロ）
+            if let frame = viewModel.latestFrame,
+               (frame.accX != 0 || frame.accY != 0 || frame.accZ != 0) {
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("6軸IMU")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 12) {
+                        statBadge(label: "aX", value: String(format: "%.3f", frame.accX))
+                        statBadge(label: "aY", value: String(format: "%.3f", frame.accY))
+                        statBadge(label: "aZ", value: String(format: "%.3f", frame.accZ))
+                    }
+                    HStack(spacing: 12) {
+                        statBadge(label: "gX", value: String(format: "%.1f", frame.gyroX))
+                        statBadge(label: "gY", value: String(format: "%.1f", frame.gyroY))
+                        statBadge(label: "gZ", value: String(format: "%.1f", frame.gyroZ))
+                    }
+                }
+            }
+
+            // 生パケットHEXダンプ（デバッグ用 — 最新20バイトの全ワード表示）
+            if let packet = viewModel.latestPacket, !packet.hexPreview.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("生パケット HEX")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    Text(packet.hexPreview)
+                        .font(.system(size: 10, weight: .regular, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                }
+            }
+
             Divider()
 
             Text(viewModel.bleDiagnosticText)
