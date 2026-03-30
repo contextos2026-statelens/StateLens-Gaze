@@ -154,15 +154,15 @@ struct BLEConfiguration {
         Data([0x02]),
         Data([0x03]),
     ]
-    let streamStartProbeInitialDelay: TimeInterval = 0.35
-    let streamStartProbeEvaluationInterval: TimeInterval = 5.5
-    let streamStartProbeWindow: TimeInterval = 3.0
-    let streamStartProbeMinimumPacketRateHz: Double = 8.0
-    let streamStartProbeMinimumDistinctPackets = 3
-    let streamStartProbeRetryInterval: TimeInterval = 8.0
-    let streamMaintainPulseInterval: TimeInterval = 5.0
+    let streamStartProbeInitialDelay: TimeInterval = 0.1
+    let streamStartProbeEvaluationInterval: TimeInterval = 3.0
+    let streamStartProbeWindow: TimeInterval = 2.0
+    let streamStartProbeMinimumPacketRateHz: Double = 5.0
+    let streamStartProbeMinimumDistinctPackets = 2
+    let streamStartProbeRetryInterval: TimeInterval = 5.0
+    let streamMaintainPulseInterval: TimeInterval = 3.0
     let streamSilenceCheckInterval: TimeInterval = 1.0
-    let streamSilenceThreshold: TimeInterval = 2.0
+    let streamSilenceThreshold: TimeInterval = 3.0
     let streamEarlyDropWindow: TimeInterval = 45.0
     let streamEarlyDropPacketThreshold = 12
     let streamFallbackCommandCooldown: TimeInterval = 3.0

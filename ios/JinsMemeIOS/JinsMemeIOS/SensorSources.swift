@@ -517,7 +517,6 @@ final class JinsMemeBLESource: NSObject, SensorSource {
     }
 
     private func beginLoggerLikeStartSequenceIfReady(peripheral: CBPeripheral) {
-        guard notifySubscriptionReady else { return }
         guard configuration.enableStreamStartCommandProbe else { return }
         guard streamWriteCharacteristic != nil else { return }
         guard !isStreamingEstablished else { return }
@@ -529,18 +528,23 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         guard !startCommandProbeOrder.isEmpty else { return }
 
         startCommandProbeWorkItem?.cancel()
-        let delay = configuration.streamStartProbeInitialDelay
+        // Notify未有効化でもWrite Characteristicが見つかっていれば即座にコマンド送信を開始
+        let delay = notifySubscriptionReady
+            ? configuration.streamStartProbeInitialDelay
+            : max(configuration.streamStartProbeInitialDelay, 0.3)
         let workItem = DispatchWorkItem { [weak self, weak peripheral] in
             guard let self, let peripheral else { return }
             guard self.hasStartedConnectionFlow else { return }
             guard self.connectedPeripheral === peripheral else { return }
             self.sendCurrentProbeCommand(
                 peripheral: peripheral,
-                reason: "通知有効化完了。Logger手順で開始コマンド送信"
+                reason: "Logger手順で開始コマンド送信"
             )
         }
         startCommandProbeWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+        // ストリーム確立前でも維持パルスのスケジューリングを開始
+        scheduleStreamMaintainPulse(peripheral: peripheral)
     }
 
     private func sendCurrentProbeCommand(peripheral: CBPeripheral, reason: String) {
@@ -682,16 +686,25 @@ final class JinsMemeBLESource: NSObject, SensorSource {
             guard let self, let peripheral else { return }
             guard self.hasStartedConnectionFlow else { return }
             guard self.connectedPeripheral === peripheral else { return }
-            guard self.notifySubscriptionReady, self.isStreamingEstablished else { return }
-            // 常時再送は切断要因になりうるため、無通信兆候がある時のみ維持パルスを送る。
-            let silence = Date().timeIntervalSince(self.lastNotificationAt)
-            let maintainThreshold = self.configuration.streamSilenceThreshold * 0.75
-            if silence >= maintainThreshold {
+
+            if !self.isStreamingEstablished {
+                // ストリーム未確立時は無条件でコマンドを再送（MEME側タイムアウト防止）
                 self.sendActiveStreamCommand(
                     peripheral: peripheral,
-                    reason: "ストリーム維持コマンド送信",
-                    minInterval: self.configuration.streamMaintainPulseInterval * 0.6
+                    reason: "ストリーム確立前の維持パルス送信",
+                    minInterval: self.configuration.streamMaintainPulseInterval * 0.5
                 )
+            } else if self.notifySubscriptionReady {
+                // ストリーム確立後は無通信兆候がある時のみ維持パルスを送る
+                let silence = Date().timeIntervalSince(self.lastNotificationAt)
+                let maintainThreshold = self.configuration.streamSilenceThreshold * 0.75
+                if silence >= maintainThreshold {
+                    self.sendActiveStreamCommand(
+                        peripheral: peripheral,
+                        reason: "ストリーム維持コマンド送信",
+                        minInterval: self.configuration.streamMaintainPulseInterval * 0.6
+                    )
+                }
             }
             self.scheduleStreamMaintainPulse(peripheral: peripheral)
         }

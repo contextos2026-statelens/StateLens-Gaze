@@ -133,6 +133,25 @@ struct ConnectTab: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
 
+            // パケット受信統計
+            HStack(spacing: 16) {
+                statBadge(label: "受信", value: "\(viewModel.receivedPacketCount)")
+                if let frame = viewModel.latestFrame {
+                    statBadge(label: "H", value: String(format: "%.3f", frame.horizontal))
+                    statBadge(label: "V", value: String(format: "%.3f", frame.vertical))
+                } else {
+                    statBadge(label: "データ", value: "未受信")
+                }
+            }
+
+            if let packet = viewModel.latestPacket {
+                Text("最終受信: \(packet.receivedAt, style: .time) / \(packet.byteCount)B")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
             Text(viewModel.bleDiagnosticText)
                 .font(.system(size: 11, weight: .regular, design: .monospaced))
                 .foregroundStyle(.primary)
@@ -142,6 +161,21 @@ struct ConnectTab: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
+    }
+
+    private func statBadge(label: String, value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.primary)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 48)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Helpers

@@ -78,12 +78,12 @@ final class DashboardViewModel: ObservableObject {
     private let csvRecorder = CSVRecorder()
     private let historyMaxCount = 120
 
-    private let maxAutoRetryCount = 0
-    private let enableAutomaticStallRecovery = false
-    private let stallThreshold: TimeInterval = 30
-    private let stallRecoveryCooldown: TimeInterval = 30
-    private let stallMonitoringWarmup: TimeInterval = 60
-    private let stallMinimumPacketsBeforeRecovery = 15
+    private let maxAutoRetryCount = 3
+    private let enableAutomaticStallRecovery = true
+    private let stallThreshold: TimeInterval = 15
+    private let stallRecoveryCooldown: TimeInterval = 20
+    private let stallMonitoringWarmup: TimeInterval = 30
+    private let stallMinimumPacketsBeforeRecovery = 5
 
     let calibrationTargets: [GazePoint] = [
         GazePoint(x: 160, y: 120), GazePoint(x: 640, y: 120), GazePoint(x: 1120, y: 120),
@@ -172,6 +172,11 @@ final class DashboardViewModel: ObservableObject {
                 self?.bufferedLatestFrame = frame
                 self?.recentFrames.append(FrameSample(frame: frame, timestamp: .now))
                 self?.trimRecentFrames()
+                // 接続直後の最初のフレームはUIを即時更新（1秒タイマー待ちせず表示）
+                if self?.latestFrame == nil {
+                    self?.latestFrame = frame
+                    self?.displayUpdatedAt = .now
+                }
             }
         }
     }
