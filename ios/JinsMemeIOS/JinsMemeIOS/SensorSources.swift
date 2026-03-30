@@ -916,9 +916,8 @@ final class JinsMemeBLESource: NSObject, SensorSource {
         if let selectedNotifyCharacteristicID {
             return characteristic.uuid == selectedNotifyCharacteristicID
         }
-        if let configuredNotifyUUID = configuration.resolvedNotifyCharacteristicUUID.map({ CBUUID(nsuuid: $0) }) {
-            return characteristic.uuid == configuredNotifyUUID
-        }
+        // JINS MEME ES等、通知用UUIDが機種ごとに(F5DC3764 / F5DC3765)異なるケースに柔軟に対応するため
+        // ターゲットServiceに属しており、notifyプロパティを持つなら全て購読を試みる。
         if let configuredServiceUUID = configuration.resolvedServiceUUID.map({ CBUUID(nsuuid: $0) }),
            characteristic.service?.uuid != configuredServiceUUID {
             return false
