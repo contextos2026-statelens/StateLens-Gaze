@@ -171,15 +171,52 @@ final class LoggerBridgeSource: SensorSource {
         }
     }
 
+    private func extractDouble(from dict: [String: Any], keys: [String]) -> Double? {
+        for key in keys {
+            if let num = dict[key] as? NSNumber {
+                return num.doubleValue
+            } else if let str = dict[key] as? String, let num = Double(str) {
+                return num
+            }
+        }
+        return nil
+    }
+
     private func processData(_ data: Data) {
         guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
         
         // Wrap raw data matching
         let raw = payload["raw"] as? [String: Any] ?? payload
         
-        let horizontal = (raw["eogH"] as? Double) ?? (raw["eog_h"] as? Double) ?? (raw["horizontal"] as? Double) ?? 0.0
-        let vertical = (raw["eogV"] as? Double) ?? (raw["eog_v"] as? Double) ?? (raw["vertical"] as? Double) ?? 0.0
-        let blink = (raw["blinkStrength"] as? Double) ?? (raw["blink_strength"] as? Double) ?? 0.0
+        var horizontal = extractDouble(from: raw, keys: ["eogH", "eog_h", "horizontal"]) ?? 0.0
+        var vertical = extractDouble(from: raw, keys: ["eogV", "eog_v", "vertical"]) ?? 0.0
+        let blink = extractDouble(from: raw, keys: ["blinkStrength", "blink_strength", "strength"]) ?? 0.0
+
+        // Format 1: Logger App sometimes sends eog_l and eog_r as fallback
+        if horizontal == 0.0 && vertical == 0.0 {
+            if let eogL = extractDouble(from: raw, keys: ["eog_l", "eogL"]),
+               let eogR = extractDouble(from: raw, keys: ["eog_r", "eogR"]) {
+                if abs(eogL) > 0.0 || abs(eogR) > 0.0 {
+                    horizontal = eogL - eogR
+                    vertical = -(eogL + eogR) / 2.0
+                }
+            }
+        }
+
+        // Format 2: STANDARD MODE payload. Logger App sends eyeMoveUp, eyeMoveDown, eyeMoveLeft, eyeMoveRight.
+        if horizontal == 0.0 && vertical == 0.0 {
+            let moveU = extractDouble(from: raw, keys: ["eyeMoveUp", "up"]) ?? 0.0
+            let moveD = extractDouble(from: raw, keys: ["eyeMoveDown", "down"]) ?? 0.0
+            let moveL = extractDouble(from: raw, keys: ["eyeMoveLeft", "left"]) ?? 0.0
+            let moveR = extractDouble(from: raw, keys: ["eyeMoveRight", "right"]) ?? 0.0
+            
+            if moveU != 0 || moveD != 0 || moveL != 0 || moveR != 0 {
+                // right is positive, left is negative
+                horizontal = moveR - moveL
+                // up is positive, down is negative
+                vertical = moveU - moveD
+            }
+        }
         
         var source = (raw["source"] as? String) ?? "logger/websocket"
         if let seq = raw["seqNo"] as? Int {
@@ -194,19 +231,22 @@ final class LoggerBridgeSource: SensorSource {
                     vertical: vertical,
                     blinkStrength: blink,
                     source: source,
-                    accX: (raw["accX"] as? Double) ?? 0.0,
-                    accY: (raw["accY"] as? Double) ?? 0.0,
-                    accZ: (raw["accZ"] as? Double) ?? 0.0,
-                    gyroX: (raw["gyroX"] as? Double) ?? 0.0,
-                    gyroY: (raw["gyroY"] as? Double) ?? 0.0,
-                    gyroZ: (raw["gyroZ"] as? Double) ?? 0.0
+                    accX: self.extractDouble(from: raw, keys: ["accX", "acc_x"]) ?? 0.0,
+                    accY: self.extractDouble(from: raw, keys: ["accY", "acc_y"]) ?? 0.0,
+                    accZ: self.extractDouble(from: raw, keys: ["accZ", "acc_z"]) ?? 0.0,
+                    gyroX: self.extractDouble(from: raw, keys: ["gyroX", "gyro_x", "roll"]) ?? 0.0,
+                    gyroY: self.extractDouble(from: raw, keys: ["gyroY", "gyro_y", "pitch"]) ?? 0.0,
+                    gyroZ: self.extractDouble(from: raw, keys: ["gyroZ", "gyro_z", "yaw"]) ?? 0.0
                 )
             )
+            let packetStr = String(data: data, encoding: .utf8) ?? ""
+            let prefix = String(packetStr.prefix(400))
+            
             self.onRawPacket?(
                 BLEPacketSnapshot(
                     receivedAt: .now,
                     byteCount: data.count,
-                    hexPreview: String(data: data, encoding: .utf8)?.prefix(50).map { String($0) }.joined() ?? "binary payload"
+                    hexPreview: prefix
                 )
             )
         }

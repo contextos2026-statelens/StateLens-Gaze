@@ -59,8 +59,8 @@ final class DashboardViewModel: ObservableObject {
     private let loggerBridgeSource = LoggerBridgeSource()
     private var estimator = GazeEstimator()
     private var updateTimer: AnyCancellable?
-    private var bufferedLatestFrame: SensorFrame?
-    private var bufferedLatestPacket: BLEPacketSnapshot?
+    private var unprocessedFrames: [SensorFrame] = []
+    private var unprocessedPackets: [BLEPacketSnapshot] = []
     private var bufferedPacketCount = 0
     private var horizontalBlinkTask: Task<Void, Never>?
     private var verticalBlinkTask: Task<Void, Never>?
@@ -110,8 +110,8 @@ final class DashboardViewModel: ObservableObject {
         bleDiagnosticText = mode == .bluetooth ? "-" : "Logger endpoint: \(loggerEndpointDescription)"
         latestFrame = nil
         latestPacket = nil
-        bufferedLatestFrame = nil
-        bufferedLatestPacket = nil
+        unprocessedFrames.removeAll()
+        unprocessedPackets.removeAll()
         bufferedPacketCount = 0
         receivedPacketCount = 0
         gazeTrail = []
@@ -146,7 +146,7 @@ final class DashboardViewModel: ObservableObject {
                     self?.lastPacketChangeAt = nil
                     // 前回接続時の受信時刻を参照して誤検知しないよう、接続セッション開始時にクリアする。
                     self?.latestPacket = nil
-                    self?.bufferedLatestPacket = nil
+                    self?.unprocessedPackets.removeAll()
                 case .failed(let failure):
                     self?.connectedAt = nil
                     self?.handleConnectionFailure(failure)
@@ -161,7 +161,7 @@ final class DashboardViewModel: ObservableObject {
 
         bluetoothSource.onRawPacket = { [weak self] packet in
             Task { @MainActor in
-                self?.bufferedLatestPacket = packet
+                self?.unprocessedPackets.append(packet)
                 self?.bufferedPacketCount += 1
                 self?.lastPacketChangeAt = .now
             }
@@ -169,10 +169,10 @@ final class DashboardViewModel: ObservableObject {
 
         bluetoothSource.onFrame = { [weak self] frame in
             Task { @MainActor in
-                self?.bufferedLatestFrame = frame
+                self?.unprocessedFrames.append(frame)
                 self?.recentFrames.append(FrameSample(frame: frame, timestamp: .now))
                 self?.trimRecentFrames()
-                // 接続直後の最初のフレームはUIを即時更新（1秒タイマー待ちせず表示）
+                // 接続直後の最初のフレームはUIを即時更新（タイマー待ちせず表示）
                 if self?.latestFrame == nil {
                     self?.latestFrame = frame
                     self?.displayUpdatedAt = .now
@@ -206,7 +206,7 @@ final class DashboardViewModel: ObservableObject {
 
         loggerBridgeSource.onRawPacket = { [weak self] packet in
             Task { @MainActor in
-                self?.bufferedLatestPacket = packet
+                self?.unprocessedPackets.append(packet)
                 self?.bufferedPacketCount += 1
                 self?.lastPacketChangeAt = .now
             }
@@ -214,7 +214,7 @@ final class DashboardViewModel: ObservableObject {
 
         loggerBridgeSource.onFrame = { [weak self] frame in
             Task { @MainActor in
-                self?.bufferedLatestFrame = frame
+                self?.unprocessedFrames.append(frame)
                 self?.recentFrames.append(FrameSample(frame: frame, timestamp: .now))
                 self?.trimRecentFrames()
             }
@@ -239,8 +239,8 @@ final class DashboardViewModel: ObservableObject {
             latestPoint = GazePoint(x: 640, y: 360)
             gazeTrail = []
             estimator = GazeEstimator()
-            bufferedLatestFrame = nil
-            bufferedLatestPacket = nil
+            unprocessedFrames.removeAll()
+            unprocessedPackets.removeAll()
             bufferedPacketCount = 0
             lastPacketChangeAt = nil
             recentFrames = []
@@ -526,56 +526,65 @@ final class DashboardViewModel: ObservableObject {
 
     private func startUpdateTimer() {
         updateTimer?.cancel()
-        updateTimer = Timer.publish(every: 1.0, on: .main, in: .common)
+        updateTimer = Timer.publish(every: 0.1, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
-                let previousFrame = self.latestFrame
-
-                if let packet = self.bufferedLatestPacket {
+                
+                let packetsToProcess = self.unprocessedPackets
+                self.unprocessedPackets.removeAll()
+                if let packet = packetsToProcess.last {
                     self.latestPacket = packet
                 }
                 self.receivedPacketCount = self.bufferedPacketCount
 
-                if let frame = self.bufferedLatestFrame {
-                    self.latestFrame = frame
-                    self.triggerBlinkIfNeeded(previous: previousFrame, current: frame)
-                    let point = self.estimator.ingest(frame)
-                    self.latestPoint = point
-                    self.gazeTrail.append(point)
-                    if self.gazeTrail.count > 120 {
-                        self.gazeTrail.removeFirst(self.gazeTrail.count - 120)
+                let framesToProcess = self.unprocessedFrames
+                self.unprocessedFrames.removeAll()
+
+                if !framesToProcess.isEmpty {
+                    var currentPrevious = self.latestFrame
+                    for frame in framesToProcess {
+                        self.triggerBlinkIfNeeded(previous: currentPrevious, current: frame)
+                        let point = self.estimator.ingest(frame)
+                        self.gazeTrail.append(point)
+                        if self.gazeTrail.count > 120 {
+                            self.gazeTrail.removeFirst(self.gazeTrail.count - 120)
+                        }
+
+                        // BLEパケットから抽出した6軸IMUデータをextendedDataに反映
+                        self.extendedData.accX = frame.accX
+                        self.extendedData.accY = frame.accY
+                        self.extendedData.accZ = frame.accZ
+                        self.extendedData.gyroRoll = frame.gyroX
+                        self.extendedData.gyroPitch = frame.gyroY
+                        self.extendedData.gyroYaw = frame.gyroZ
+
+                        // Update history arrays for Logger tab charts
+                        self.appendHistory(&self.horizontalHistory, value: frame.horizontal)
+                        self.appendHistory(&self.verticalHistory, value: frame.vertical)
+                        self.appendHistory(&self.blinkStrengthHistory, value: frame.blinkStrength)
+                        self.appendHistory(&self.blinkSpeedHistory, value: self.extendedData.blinkSpeed)
+                        self.appendHistory(&self.accXHistory, value: self.extendedData.accX)
+                        self.appendHistory(&self.accYHistory, value: self.extendedData.accY)
+                        self.appendHistory(&self.accZHistory, value: self.extendedData.accZ)
+                        self.appendHistory(&self.gyroRollHistory, value: self.extendedData.gyroRoll)
+                        self.appendHistory(&self.gyroPitchHistory, value: self.extendedData.gyroPitch)
+                        self.appendHistory(&self.gyroYawHistory, value: self.extendedData.gyroYaw)
+                        self.appendHistory(&self.tiltXHistory, value: self.extendedData.tiltX)
+                        self.appendHistory(&self.tiltYHistory, value: self.extendedData.tiltY)
+                        self.appendHistory(&self.isStillHistory, value: self.extendedData.isStill)
+                        self.appendHistory(&self.noiseHistory, value: self.extendedData.noise)
+
+                        // Write to CSV if recording
+                        if self.csvRecorder.isRecording {
+                            self.csvRecorder.writeFrame(frame, extended: self.extendedData)
+                        }
+                        currentPrevious = frame
                     }
-
-                    // BLEパケットから抽出した6軸IMUデータをextendedDataに反映
-                    self.extendedData.accX = frame.accX
-                    self.extendedData.accY = frame.accY
-                    self.extendedData.accZ = frame.accZ
-                    self.extendedData.gyroRoll = frame.gyroX
-                    self.extendedData.gyroPitch = frame.gyroY
-                    self.extendedData.gyroYaw = frame.gyroZ
-
-                    // Update history arrays for Logger tab charts
-                    self.appendHistory(&self.horizontalHistory, value: frame.horizontal)
-                    self.appendHistory(&self.verticalHistory, value: frame.vertical)
-                    self.appendHistory(&self.blinkStrengthHistory, value: frame.blinkStrength)
-                    self.appendHistory(&self.blinkSpeedHistory, value: self.extendedData.blinkSpeed)
-                    self.appendHistory(&self.accXHistory, value: self.extendedData.accX)
-                    self.appendHistory(&self.accYHistory, value: self.extendedData.accY)
-                    self.appendHistory(&self.accZHistory, value: self.extendedData.accZ)
-                    self.appendHistory(&self.gyroRollHistory, value: self.extendedData.gyroRoll)
-                    self.appendHistory(&self.gyroPitchHistory, value: self.extendedData.gyroPitch)
-                    self.appendHistory(&self.gyroYawHistory, value: self.extendedData.gyroYaw)
-                    self.appendHistory(&self.tiltXHistory, value: self.extendedData.tiltX)
-                    self.appendHistory(&self.tiltYHistory, value: self.extendedData.tiltY)
-                    self.appendHistory(&self.isStillHistory, value: self.extendedData.isStill)
-                    self.appendHistory(&self.noiseHistory, value: self.extendedData.noise)
-
-                    // Write to CSV if recording
-                    if self.csvRecorder.isRecording {
-                        self.csvRecorder.writeFrame(frame, extended: self.extendedData)
-                    }
+                    self.latestFrame = framesToProcess.last
+                    self.latestPoint = self.gazeTrail.last ?? GazePoint(x: 640, y: 360)
                 }
+                
                 self.displayUpdatedAt = .now
                 self.recoverIfStalled()
             }
